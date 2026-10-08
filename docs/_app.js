@@ -579,7 +579,7 @@ async function vueDev() {
 }
 function carteDev(d) {
   const [cls, lib] = STATUTS_DEV[d.status] || ['gris', d.status];
-  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr"><span class="s">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
+  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr;gap:.7em"><span class="s" style="min-width:3.2em">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
   return `<div class="ligne" style="display:block"><div style="display:flex;justify-content:space-between;gap:.8em;align-items:center"><b>${esc(d.title)}</b><span class="etat ${cls}">${lib}</span></div>
     <small>${dateFr(d.created_at)} ${hhmm(new Date(d.created_at))}${d.commit_sha ? ' · version ' + esc(d.commit_sha.slice(0, 7)) : ''}</small>
     ${d.detail ? `<p class="sm" style="white-space:pre-wrap;margin:.4em 0">${esc(d.detail)}</p>` : ''}
@@ -597,8 +597,7 @@ async function envoyerDev() {
   try {
     let attachment = null; const f = $('#dv-file').files[0];
     if (f) { toast('Envoi de la capture…', 8000); attachment = await televerser(f, 'dev'); }
-    const thread = [{ who: 'paul', text: detail || title, at: new Date().toISOString() }];
-    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread, created_by: state.moi.user_id });
+    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread: [], created_by: state.moi.user_id });
     if (error) throw error;
     await chargerDev(); vueDev(); toast('<b>Demande transmise à Claude.</b> Vous serez prévenu ici.');
   } catch (e) { console.error(e); toast('Envoi impossible : ' + esc(e.message || '')); btn.disabled = false; }
@@ -653,10 +652,10 @@ function renderNav() {
   const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
   const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
   const devOuv = (state.dev || []).filter(d => ['question', 'livrée'].includes(d.status) && !d.vu).length;
-  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
+  const btn = (k, court) => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${court && k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
   const vs = vuesVisibles();
-  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(btn).join('')}`;
-  $('#tabs').innerHTML = vs.map(btn).join('');
+  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(k => btn(k, false)).join('')}`;
+  $('#tabs').innerHTML = vs.map(k => btn(k, true)).join('');
   $('#tabs').style.gridTemplateColumns = `repeat(${vs.length},1fr)`;
   $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
   const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }

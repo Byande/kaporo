@@ -255,7 +255,7 @@ async function vueDev() {
 }
 function carteDev(d) {
   const [cls, lib] = STATUTS_DEV[d.status] || ['gris', d.status];
-  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr"><span class="s">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
+  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr;gap:.7em"><span class="s" style="min-width:3.2em">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
   return `<div class="ligne" style="display:block"><div style="display:flex;justify-content:space-between;gap:.8em;align-items:center"><b>${esc(d.title)}</b><span class="etat ${cls}">${lib}</span></div>
     <small>${dateFr(d.created_at)} ${hhmm(new Date(d.created_at))}${d.commit_sha ? ' · version ' + esc(d.commit_sha.slice(0, 7)) : ''}</small>
     ${d.detail ? `<p class="sm" style="white-space:pre-wrap;margin:.4em 0">${esc(d.detail)}</p>` : ''}
@@ -273,8 +273,7 @@ async function envoyerDev() {
   try {
     let attachment = null; const f = $('#dv-file').files[0];
     if (f) { toast('Envoi de la capture…', 8000); attachment = await televerser(f, 'dev'); }
-    const thread = [{ who: 'paul', text: detail || title, at: new Date().toISOString() }];
-    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread, created_by: state.moi.user_id });
+    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread: [], created_by: state.moi.user_id });
     if (error) throw error;
     await chargerDev(); vueDev(); toast('<b>Demande transmise à Claude.</b> Vous serez prévenu ici.');
   } catch (e) { console.error(e); toast('Envoi impossible : ' + esc(e.message || '')); btn.disabled = false; }
