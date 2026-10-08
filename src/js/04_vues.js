@@ -294,22 +294,24 @@ function repondreDev(id) {
   });
 }
 
-/* Réglages du module Développement : secret partagé et URL du déclencheur (saisis par l'administrateur, jamais relus) */
+/* Réglages du module Développement : secret partagé et jeton GitHub (saisis par l'administrateur, jamais relus) */
 async function carteReglagesDev() {
-  let etat = {};
+  let etat = {}; let journal = [];
   try { const { data } = await state.client.rpc('kp_dev_settings_state'); etat = data || {}; } catch (e) { }
+  try { const { data } = await state.client.rpc('kp_dev_dispatch_log'); journal = data || []; } catch (e) { }
   const ok = k => etat[k] ? '<span class="etat">renseigné</span>' : '<span class="etat rouge">manquant</span>';
+  const j = journal.length ? `<p class="sm muted" style="margin-top:.8em">Derniers signaux envoyés à GitHub : ${journal.map(x => `<span class="etat ${x.status >= 200 && x.status < 300 ? '' : 'rouge'}">${x.status || 'erreur'}</span>`).join(' ')}</p>` : '';
   return `<div class="carte" style="margin-top:1em"><h3>Liaison avec l’agent Claude</h3>
-    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine Claude sur claude.ai. Elles sont stockées côté serveur et ne sont jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
-    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, identique dans la routine claude.ai"></label>
-    <label class="champ"><span>URL du déclencheur ${ok('dev_webhook_url')}</span><input id="dvs-url" type="password" autocomplete="off" placeholder="https://… (fournie par la routine claude.ai)"></label>
-    <button class="btn sm" id="dvs-ok">Enregistrer</button></div>`;
+    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine Claude sur claude.ai. Elles sont stockées côté serveur, jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
+    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, la même que KP_DEV_SECRET sur claude.ai"></label>
+    <label class="champ"><span>Jeton GitHub ${ok('github_token')}</span><input id="dvs-token" type="password" autocomplete="off" placeholder="Jeton à granularité fine, dépôt Byande/kaporo, Contents : lecture et écriture"></label>
+    <button class="btn sm" id="dvs-ok">Enregistrer</button>${j}</div>`;
 }
 async function enregistrerReglagesDev() {
-  const s = $('#dvs-secret').value; const u = $('#dvs-url').value.trim();
+  const s = $('#dvs-secret').value; const g = $('#dvs-token').value.trim();
   try {
     if (s) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_secret', v: s }); if (error) throw error; }
-    if (u) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_webhook_url', v: u }); if (error) throw error; }
+    if (g) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'github_token', v: g }); if (error) throw error; }
     toast('Réglages enregistrés'); vueDev();
   } catch (e) { toast('Enregistrement impossible : ' + esc(e.message || '')); }
 }
