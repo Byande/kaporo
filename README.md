@@ -1,6 +1,6 @@
 # Kaporo — espace de travail sécurisé
 
-Application de collaboration des programmes immobiliers Kaporo 1 et Kaporo 2 (Conakry) : discussions en temps réel, coffre de documents, journal des décisions, phases du programme, tâches, équipe.
+Application de collaboration des programmes immobiliers Kaporo 1 et Kaporo 2 (Conakry) : discussions en temps réel, coffre de documents, journal des décisions, module Suivi (tableau de bord, liste, kanban, Gantt, calendrier, fiches tâches avec sous-tâches et commentaires, phases), équipe.
 
 - Source : `src/` (CSS dans `head.html`, HTML dans `body.html`, scripts dans `js/`).
 - Construction : `python3 build.py` → `docs/index.html` (fichier unique à publier).

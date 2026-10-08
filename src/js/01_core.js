@@ -26,6 +26,8 @@ function jourRelatif(d) {
   return dateFr(b, { jour: true });
 }
 const octets = n => !n ? '' : n < 1024 ? n + ' o' : n < 1048576 ? (n / 1024).toFixed(0) + ' Ko' : (n / 1048576).toFixed(1) + ' Mo';
+const prenom = n => (n || '').trim().split(/\s+/)[0] || '';
+const echapRegex = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const initiales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
 function linkify(t) {
   return esc(t).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
@@ -38,7 +40,7 @@ const state = {
   client: null, session: null, moi: null,
   vue: localStorage.getItem('kp.vue') || 'discussions',
   canal: localStorage.getItem('kp.canal') || null, salonOuvert: false,
-  membres: [], projets: [], canaux: [], messages: [], lectures: {}, documents: [], decisions: [], phases: [], taches: [],
+  membres: [], projets: [], canaux: [], participants: {}, messages: [], lectures: {}, documents: [], decisions: [], phases: [], taches: [],
   reponseA: null, pj: null, selection: null, urls: {}, filtreProjet: 'tous', filtreDoc: 'tous', filtreTache: 'ouvertes',
 };
 const membre = id => state.membres.find(m => m.user_id === id) || { name: 'Membre', color: '#6B6B6B', user_id: id };

@@ -3,7 +3,7 @@
    ============================================================ */
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
-  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '☑️', 'Tâches', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
+  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
   ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
 const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
@@ -30,7 +30,7 @@ function setConn(ok, lib) { const c = $('#conn'); c.className = 'pill ' + (ok ? 
 
 async function chargerTout() {
   const c = state.client;
-  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta] = await Promise.all([
+  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm] = await Promise.all([
     c.from('kp_members').select('*').eq('user_id', state.session.user.id).maybeSingle(),
     c.from('kp_members').select('*').order('created_at'),
     c.from('kp_projects').select('*').order('sort'),
@@ -41,12 +41,33 @@ async function chargerTout() {
     c.from('kp_decisions').select('*').order('decided_on', { ascending: false }),
     c.from('kp_phases').select('*').order('num'),
     c.from('kp_tasks').select('*').order('created_at'),
+    c.from('kp_channel_members').select('*'),
   ]);
-  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta].find(r => r.error); if (err) throw err.error;
+  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm].find(r => r.error); if (err) throw err.error;
   if (!me.data) throw new Error('PROFIL_ABSENT');
   state.moi = me.data; state.membres = mb.data; state.projets = pr.data; state.canaux = ch.data; state.messages = ms.data;
+  state.participants = grouperParticipants(cm.data);
   state.lectures = Object.fromEntries((rd.data || []).map(r => [r.channel_id, r.last_read]));
   state.documents = dc.data; state.decisions = de.data; state.phases = ph.data; state.taches = ta.data;
+}
+const grouperParticipants = rows => (rows || []).reduce((o, r) => { (o[r.channel_id] = o[r.channel_id] || []).push(r.user_id); return o; }, {});
+/* Canaux et participants : rechargés quand une conversation privée est créée (temps réel) */
+let rechargementCanaux = null;
+function rechargerCanaux() {
+  if (rechargementCanaux) return rechargementCanaux;
+  rechargementCanaux = (async () => {
+    const [ch, cm, ms] = await Promise.all([
+      state.client.from('kp_channels').select('*').order('sort'),
+      state.client.from('kp_channel_members').select('*'),
+      state.client.from('kp_messages').select('*').order('created_at', { ascending: true }).limit(2000),
+    ]);
+    if (ch.data) state.canaux = ch.data;
+    if (cm.data) state.participants = grouperParticipants(cm.data);
+    if (ms.data) { for (const m of ms.data) if (!state.messages.find(x => x.id === m.id)) state.messages.push(m); state.messages.sort((a, b) => a.created_at < b.created_at ? -1 : 1); }
+    if (state.vue === 'discussions') { renderCanaux(); if (state.canal && !state.canaux.find(c => c.id === state.canal)) { state.canal = state.canaux[0]?.id; renderSalon(); } }
+    renderNav();
+  })().finally(() => { rechargementCanaux = null; });
+  return rechargementCanaux;
 }
 function brancherTempsReel() {
   const c = state.client;
@@ -54,10 +75,11 @@ function brancherTempsReel() {
     const row = payload.new?.id ? payload.new : null;
     if (payload.eventType === 'DELETE') { state[cle] = state[cle].filter(x => x.id !== payload.old.id); }
     else if (row) { const i = state[cle].findIndex(x => x.id === row.id); if (i >= 0) state[cle][i] = row; else state[cle].push(row); if (tri) state[cle].sort(tri); }
-    if (!document.activeElement?.matches('input,select,textarea') && state.vue !== 'discussions') go(state.vue); else renderNav();
+    if (!document.activeElement?.matches('input,select,textarea') && !$('#modal') && state.vue !== 'discussions') { if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else go(state.vue); } else renderNav();
   };
   c.channel('kaporo-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_messages' }, p => { if (p.new?.id) messageRecu(p.new); })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'kp_channel_members' }, p => { if (p.new?.user_id === state.moi?.user_id) rechargerCanaux(); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_tasks' }, maj('kp_tasks', 'taches'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))

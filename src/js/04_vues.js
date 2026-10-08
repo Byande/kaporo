@@ -22,17 +22,22 @@ function vueProjets() {
     if (error) { toast('Modification impossible'); return; }
     const ph = state.phases.find(p => p.id === s.dataset.phase); if (ph) ph.status = s.value; vueProjets(); toast('Phase mise à jour');
   }));
+  $$('[data-planning],[data-kanban-p]').forEach(b => b.addEventListener('click', () => { state.filtreProjet = b.dataset.planning || b.dataset.kanbanP; state.suivi.onglet = b.dataset.planning ? 'gantt' : 'kanban'; memoSuivi(); go('taches'); }));
+  $$('[data-phase-ouvrir]').forEach(el => el.addEventListener('click', () => formPhase(el.dataset.phaseOuvrir)));
 }
 function carteProjet(p) {
   const phases = state.phases.filter(x => x.project_id === p.id).sort((a, b) => a.num - b.num);
   const faites = phases.filter(x => x.status === 'terminée').length;
   const docs = state.documents.filter(d => d.project_id === p.id).length;
   const taches = state.taches.filter(t => t.project_id === p.id && t.status !== 'fait').length;
+  const pct = phases.length ? Math.round(phases.reduce((s, x) => s + progPhase(x), 0) / phases.length) : 0;
   return `<div class="carte"><h3>${esc(p.name)} <span class="etat ${classeStatut(p.status)}">${esc(p.status)}</span></h3>
     <p class="muted sm" style="margin-bottom:.6em">${esc(p.subtitle || '')}${p.surface_m2 ? ` · <b class="num">${p.surface_m2.toLocaleString('fr-FR')} m²</b>` : ''}</p>
-    <p class="sm" style="margin-bottom:.6em">${phases.length ? `${faites}/${phases.length} phases terminées` : 'Aucune phase définie'} · ${docs} document${docs > 1 ? 's' : ''} · ${taches} tâche${taches > 1 ? 's' : ''} ouverte${taches > 1 ? 's' : ''}</p>
+    <p class="sm" style="margin-bottom:.4em">${phases.length ? `${faites}/${phases.length} phases terminées · avancement <b class="num">${pct} %</b>` : 'Aucune phase définie'} · ${docs} document${docs > 1 ? 's' : ''} · ${taches} tâche${taches > 1 ? 's' : ''} ouverte${taches > 1 ? 's' : ''}</p>
+    ${phases.length ? jauge(pct, 'or') : ''}
+    <div class="actions" style="margin:.7em 0 .3em"><button class="btn sm" data-planning="${p.id}">Gantt</button><button class="btn sm" data-kanban-p="${p.id}">Kanban</button></div>
     ${phases.length ? phases.map(ph => `<div class="phase ${ph.status === 'en cours' ? 'encours' : ph.status === 'terminée' ? 'fait' : ''}"><span class="n">${ph.num}</span>
-        <div><b>${esc(ph.title)}</b><small>${ph.start_on ? dateFr(ph.start_on) : '—'} → ${ph.end_on ? dateFr(ph.end_on) : 'en continu'}</small><small>${esc(ph.deliverable || '')}</small></div>
+        <div><b data-phase-ouvrir="${ph.id}" style="cursor:pointer">${esc(ph.title)}</b><small>${ph.start_on ? dateFr(ph.start_on) : '—'} → ${ph.end_on ? dateFr(ph.end_on) : 'en continu'} · ${progPhase(ph)} %${ph.owner ? ' · ' + esc(membre(ph.owner).name) : ''}</small><small>${esc(ph.deliverable || '')}</small></div>
         <select class="inline" data-phase="${ph.id}">${STATUTS_PHASE.map(s => `<option ${s === ph.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`).join('')
       : '<div class="vide">Les phases seront définies après la visite du second terrain.</div>'}</div>`;
 }
@@ -115,50 +120,6 @@ function vueDecisions() {
     const { error } = await state.client.from('kp_decisions').delete().eq('id', b.dataset.suppr);
     if (error) { toast('Suppression impossible'); return; }
     state.decisions = state.decisions.filter(d => d.id !== b.dataset.suppr); vueDecisions();
-  }));
-}
-
-/* ---- Tâches ---- */
-function vueTaches() {
-  const main = $('#main'); main.className = '';
-  const auj = new Date().toISOString().slice(0, 10);
-  let ts = state.taches.filter(t => passeFiltre('filtreProjet', t.project_id));
-  if (state.filtreTache === 'ouvertes') ts = ts.filter(t => t.status !== 'fait');
-  ts.sort((a, b) => (a.status === 'fait') - (b.status === 'fait') || (a.due_on || '9') .localeCompare(b.due_on || '9'));
-  main.innerHTML = `<div class="vue"><h1>Tâches</h1><p class="sous">Qui fait quoi, pour quand. Cochez une tâche terminée ; les retards apparaissent en rouge.</p>
-    <div class="actions" style="margin-bottom:1em"><button class="btn prim" id="t-ajout">＋ Nouvelle tâche</button>
-      <button class="btn ${state.filtreTache === 'ouvertes' ? 'prim' : ''}" id="t-ouv">Ouvertes</button><button class="btn ${state.filtreTache === 'toutes' ? 'prim' : ''}" id="t-tout">Toutes</button></div>
-    ${filtresProjet('filtreProjet')}
-    <div class="carte">${ts.length ? ts.map(t => `<div class="tache ${t.status === 'fait' ? 'fait' : ''} ${t.status !== 'fait' && t.due_on && t.due_on < auj ? 'retard' : ''}"><input type="checkbox" data-t="${t.id}" ${t.status === 'fait' ? 'checked' : ''}>
-        <div><b>${esc(t.title)}</b><small>${t.assignee ? esc(membre(t.assignee).name) : 'Non attribuée'} · ${esc(nomProjet(t.project_id))}${t.due_on ? ' · pour le ' + dateFr(t.due_on) : ''}</small></div>
-        ${t.created_by === state.moi.user_id || state.moi.is_admin || !t.created_by ? `<button class="btn sm" data-suppr="${t.id}">✕</button>` : '<span></span>'}</div>`).join('') : '<div class="vide">Aucune tâche.</div>'}</div></div>`;
-  brancherFiltres('filtreProjet', vueTaches);
-  $('#t-ouv').addEventListener('click', () => { state.filtreTache = 'ouvertes'; vueTaches(); });
-  $('#t-tout').addEventListener('click', () => { state.filtreTache = 'toutes'; vueTaches(); });
-  $$('input[data-t]').forEach(c => c.addEventListener('change', async () => {
-    const t = state.taches.find(x => x.id === c.dataset.t); const fait = c.checked;
-    const { error } = await state.client.from('kp_tasks').update({ status: fait ? 'fait' : 'à faire', done_at: fait ? new Date().toISOString() : null }).eq('id', t.id);
-    if (error) { toast('Modification impossible'); c.checked = !fait; return; }
-    t.status = fait ? 'fait' : 'à faire'; vueTaches();
-  }));
-  $$('[data-suppr]').forEach(b => b.addEventListener('click', async () => {
-    if (!confirm('Supprimer cette tâche ?')) return;
-    const { error } = await state.client.from('kp_tasks').delete().eq('id', b.dataset.suppr);
-    if (error) { toast('Suppression impossible'); return; }
-    state.taches = state.taches.filter(t => t.id !== b.dataset.suppr); vueTaches();
-  }));
-  $('#t-ajout').addEventListener('click', () => modal(`<h3>Nouvelle tâche</h3>
-    <label class="champ"><span>Tâche</span><input id="t-titre" placeholder="Ex. Demander le certificat de non-litige"></label>
-    <label class="champ"><span>Projet</span><select id="t-projet">${optionsProjets(state.filtreProjet === 'tous' ? 'kaporo1' : state.filtreProjet)}</select></label>
-    <label class="champ"><span>Responsable</span><select id="t-qui"><option value="">Non attribuée</option>${state.membres.map(m => `<option value="${m.user_id}">${esc(m.name)}</option>`).join('')}</select></label>
-    <label class="champ"><span>Échéance</span><input id="t-date" type="date"></label>
-    <div class="actions"><button class="btn prim" id="t-ok">Créer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
-    $('#t-ok', mo).addEventListener('click', async () => {
-      const title = $('#t-titre').value.trim(); if (!title) return;
-      const { data, error } = await state.client.from('kp_tasks').insert({ title, project_id: $('#t-projet').value || null, assignee: $('#t-qui').value || null, due_on: $('#t-date').value || null, created_by: state.moi.user_id }).select().single();
-      if (error) { toast('Création impossible'); return; }
-      if (!state.taches.find(t => t.id === data.id)) state.taches.push(data); fermerModal(); vueTaches(); toast('Tâche créée');
-    });
   }));
 }
 
