@@ -54,7 +54,7 @@ function formReunion(id) {
       <label class="champ"><span>Lien visio</span><input id="mr-lien" value="${esc(m?.link || '')}" placeholder="https://meet.google.com/…"></label></div>
     <label class="champ"><span>Objectifs (ce que la réunion doit produire)</span><textarea id="mr-obj" rows="2">${esc(m?.objectives || '')}</textarea></label>
     <label class="champ"><span>Ordre du jour (un point par ligne)</span><textarea id="mr-odj" rows="4" placeholder="1. Retour sur la visite du terrain\n2. Lettre de mission\n3. Calendrier des études">${esc((m?.agenda || []).map(a => a.text).join('\n'))}</textarea></label>
-    <div class="champ"><span>Participants</span><div class="coches">${state.membres.map(x => `<label class="coche"><input type="checkbox" data-part="${x.user_id}" ${parts.includes(x.user_id) ? 'checked' : ''}> ${esc(x.name)} <small class="muted">· ${esc(x.role)}</small></label>`).join('')}</div></div>
+    <div class="champ"><span>Participants</span><div class="coches">${state.membres.map(x => `<label class="coche"><input type="checkbox" data-part="${x.user_id}" ${parts.includes(x.user_id) ? 'checked' : ''}><span>${esc(x.name)} <small class="muted">· ${esc(x.role)}</small></span></label>`).join('')}</div></div>
     <label class="champ"><span>Invités extérieurs (facultatif)</span><input id="mr-ext" value="${esc(m?.externals || '')}" placeholder="Ex. Me Diallo (notaire), M. Sylla"></label>
     <div class="actions"><button class="btn prim" id="mr-ok">${m ? 'Enregistrer' : 'Planifier'}</button>${m && m.status !== 'annulée' ? '<button class="btn" id="mr-annuler">Annuler la réunion</button>' : ''}<button class="btn" onclick="fermerModal()">Fermer</button></div>`, mo => {
     $('#mr-titre', mo).focus();
