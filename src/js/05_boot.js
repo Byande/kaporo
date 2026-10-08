@@ -4,14 +4,19 @@
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
   ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '☑️', 'Tâches', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
+  ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
+const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
   const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
   const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
-  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2]}</span>${badge(k[0])}</button>`;
-  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${VUES.map(btn).join('')}`;
-  $('#tabs').innerHTML = VUES.map(btn).join('');
+  const devOuv = (state.dev || []).filter(d => ['question', 'livrée'].includes(d.status) && !d.vu).length;
+  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
+  const vs = vuesVisibles();
+  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(btn).join('')}`;
+  $('#tabs').innerHTML = vs.map(btn).join('');
+  $('#tabs').style.gridTemplateColumns = `repeat(${vs.length},1fr)`;
   $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
   const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }
   document.title = (nl ? `(${nl}) ` : '') + 'Kaporo';
@@ -57,6 +62,11 @@ function brancherTempsReel() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_phases' }, maj('kp_phases', 'phases', (a, b) => a.num - b.num))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_dev_requests' }, async p => {
+      if (!state.moi?.is_admin) return; await chargerDev();
+      if (p.new && ['question', 'livrée', 'erreur'].includes(p.new.status) && p.old?.status !== p.new.status) toast(`<b>Claude · ${esc(p.new.title)}</b><br>${p.new.status === 'livrée' ? 'Livrée : rechargez l’application pour voir le résultat.' : p.new.status === 'question' ? 'Claude a une question.' : 'Erreur pendant la réalisation.'}`, 6000);
+      if (state.vue === 'dev' && !document.activeElement?.matches('input,select,textarea')) vueDev(); else renderNav();
+    })
     .subscribe(st => { setConn(st === 'SUBSCRIBED', st === 'SUBSCRIBED' ? 'En direct' : st === 'CHANNEL_ERROR' ? 'Reconnexion…' : 'Connexion…'); });
   // Nouveaux membres : rafraîchir la liste (pas de temps réel sur la table, on recharge à la demande)
   c.from('kp_members').select('*').order('created_at').then(r => { if (r.data) state.membres = r.data; });
@@ -72,7 +82,8 @@ async function demarrerSession(session) {
     msgLogin('err', 'Chargement impossible : ' + esc(e.message)); return;
   }
   $('#login').hidden = true; $('#app').hidden = false;
-  go(VUES.find(v => v[0] === state.vue) ? state.vue : 'discussions');
+  if (state.moi.is_admin) await chargerDev();
+  go(vuesVisibles().find(v => v[0] === state.vue) ? state.vue : 'discussions');
   brancherTempsReel();
   if (state.vue === 'discussions' && window.matchMedia('(max-width:820px)').matches && totalNonLus() === 0 && state.canal) { /* on reste sur la liste des canaux */ }
 }

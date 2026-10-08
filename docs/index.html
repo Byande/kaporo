@@ -191,7 +191,7 @@ select.inline{border:1px solid var(--trait);border-radius:.4em;padding:.25em .4e
   .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
   nav.side{display:none}
   nav.tabs{display:grid;grid-template-columns:repeat(6,1fr);background:var(--papier);border-top:1px solid var(--trait);padding:.25em 0 var(--sab);z-index:20}
-  nav.tabs button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:.1em;padding:.35em 0;font-size:.62em;font-weight:600;color:var(--pierre);position:relative}
+  nav.tabs button{background:none;border:0;display:flex;flex-direction:column;align-items:center;gap:.1em;padding:.35em 0;font-size:.58em;font-weight:600;color:var(--pierre);position:relative}
   nav.tabs button .ic{font-size:1.75em;line-height:1}
   nav.tabs button.on{color:var(--encre)}
   nav.tabs button .bd{position:absolute;top:0;right:12%;margin:0;font-size:.95em}
@@ -787,20 +787,120 @@ async function vueEquipe() {
   }));
 }
 
+/* ---- Développement (administrateur) : demandes transmises à l'agent Claude ---- */
+const STATUTS_DEV = { 'envoyée': ['bleu', 'Transmise'], 'en cours': ['ambre', 'En cours'], 'question': ['ambre', 'Question'], 'livrée': ['', 'Livrée'], 'abandonnée': ['gris', 'Abandonnée'], 'erreur': ['rouge', 'Erreur'] };
+async function chargerDev() {
+  const { data, error } = await state.client.from('kp_dev_requests').select('*').order('created_at', { ascending: false });
+  if (!error) state.dev = data || [];
+}
+async function vueDev() {
+  const main = $('#main'); main.className = '';
+  if (!state.moi.is_admin) { main.innerHTML = '<div class="vide">Module réservé à l’administrateur.</div>'; return; }
+  if (!state.dev) await chargerDev();
+  const ouvertes = state.dev.filter(d => !['livrée', 'abandonnée'].includes(d.status));
+  const closes = state.dev.filter(d => ['livrée', 'abandonnée'].includes(d.status));
+  main.innerHTML = `<div class="vue"><h1>Développement</h1><p class="sous">Décrivez une modification ou un ajustement de l’application. La demande part automatiquement vers l’agent Claude, qui la réalise, publie la nouvelle version et vous répond ici. Comptez quelques minutes.</p>
+    <div class="g g2">
+      <div class="carte accent"><h3>Nouvelle demande</h3>
+        <label class="champ"><span>En une ligne</span><input id="dv-titre" placeholder="Ex. Ajouter un filtre par membre dans Tâches"></label>
+        <label class="champ"><span>Détail (ce que vous voulez voir, où, pourquoi)</span><textarea id="dv-detail" rows="5" placeholder="Plus c’est précis, plus le résultat sera juste du premier coup."></textarea></label>
+        <label class="champ"><span>Capture d’écran (facultatif)</span><input type="file" id="dv-file" accept="image/*"></label>
+        <button class="btn prim" id="dv-ok">Envoyer à Claude</button>
+        <p class="sm muted" style="margin-top:.8em">Après « Livrée », rechargez l’application pour voir le résultat (sur téléphone : fermer et rouvrir).</p></div>
+      <div class="carte"><h3>En cours <small>${ouvertes.length}</small></h3>${ouvertes.length ? ouvertes.map(carteDev).join('') : '<div class="vide">Aucune demande en cours.</div>'}</div>
+    </div>
+    <div class="carte" style="margin-top:1em"><h3>Historique <small>${closes.length}</small></h3>${closes.length ? closes.map(carteDev).join('') : '<div class="vide">Rien encore.</div>'}</div>
+    ${await carteReglagesDev()}</div>`;
+  $('#dv-ok').addEventListener('click', envoyerDev);
+  $('#dvs-ok').addEventListener('click', enregistrerReglagesDev);
+  $$('[data-dv-rep]').forEach(b => b.addEventListener('click', () => repondreDev(b.dataset.dvRep)));
+  $$('[data-dv-stop]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Abandonner cette demande ?')) return;
+    await state.client.from('kp_dev_requests').update({ status: 'abandonnée' }).eq('id', b.dataset.dvStop); await chargerDev(); vueDev();
+  }));
+  $$('[data-dv-reload]').forEach(b => b.addEventListener('click', () => location.reload()));
+}
+function carteDev(d) {
+  const [cls, lib] = STATUTS_DEV[d.status] || ['gris', d.status];
+  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr"><span class="s">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
+  return `<div class="ligne" style="display:block"><div style="display:flex;justify-content:space-between;gap:.8em;align-items:center"><b>${esc(d.title)}</b><span class="etat ${cls}">${lib}</span></div>
+    <small>${dateFr(d.created_at)} ${hhmm(new Date(d.created_at))}${d.commit_sha ? ' · version ' + esc(d.commit_sha.slice(0, 7)) : ''}</small>
+    ${d.detail ? `<p class="sm" style="white-space:pre-wrap;margin:.4em 0">${esc(d.detail)}</p>` : ''}
+    ${fil ? `<div style="margin:.5em 0">${fil}</div>` : ''}
+    <div class="actions" style="margin-top:.5em">
+      ${d.status === 'livrée' ? '<button class="btn sm or" data-dv-reload>Recharger l’application</button>' : ''}
+      ${['question', 'livrée', 'erreur'].includes(d.status) ? `<button class="btn sm" data-dv-rep="${d.id}">${d.status === 'question' ? 'Répondre' : 'Demander un ajustement'}</button>` : ''}
+      ${!['livrée', 'abandonnée'].includes(d.status) ? `<button class="btn sm" data-dv-stop="${d.id}">Abandonner</button>` : ''}
+    </div></div>`;
+}
+async function envoyerDev() {
+  const title = $('#dv-titre').value.trim(); const detail = $('#dv-detail').value.trim();
+  if (!title) { toast('Décrivez la demande en une ligne'); return; }
+  const btn = $('#dv-ok'); btn.disabled = true;
+  try {
+    let attachment = null; const f = $('#dv-file').files[0];
+    if (f) { toast('Envoi de la capture…', 8000); attachment = await televerser(f, 'dev'); }
+    const thread = [{ who: 'paul', text: detail || title, at: new Date().toISOString() }];
+    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread, created_by: state.moi.user_id });
+    if (error) throw error;
+    await chargerDev(); vueDev(); toast('<b>Demande transmise à Claude.</b> Vous serez prévenu ici.');
+  } catch (e) { console.error(e); toast('Envoi impossible : ' + esc(e.message || '')); btn.disabled = false; }
+}
+function repondreDev(id) {
+  const d = state.dev.find(x => x.id === id); if (!d) return;
+  modal(`<h3>${d.status === 'question' ? 'Répondre à Claude' : 'Demander un ajustement'}</h3>
+    <p class="sm muted" style="margin-bottom:.6em">${esc(d.title)}</p>
+    <label class="champ"><span>Votre message</span><textarea id="dv-msg" rows="5"></textarea></label>
+    <div class="actions"><button class="btn prim" id="dv-msg-ok">Envoyer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#dv-msg-ok', mo).addEventListener('click', async () => {
+      const text = $('#dv-msg').value.trim(); if (!text) return;
+      const thread = (d.thread || []).concat([{ who: 'paul', text, at: new Date().toISOString() }]);
+      const { error } = await state.client.from('kp_dev_requests').update({ thread, status: 'envoyée' }).eq('id', id);
+      if (error) { toast('Envoi impossible'); return; }
+      fermerModal(); await chargerDev(); vueDev(); toast('Message transmis à Claude');
+    });
+  });
+}
+
+/* Réglages du module Développement : secret partagé et URL du déclencheur (saisis par l'administrateur, jamais relus) */
+async function carteReglagesDev() {
+  let etat = {};
+  try { const { data } = await state.client.rpc('kp_dev_settings_state'); etat = data || {}; } catch (e) { }
+  const ok = k => etat[k] ? '<span class="etat">renseigné</span>' : '<span class="etat rouge">manquant</span>';
+  return `<div class="carte" style="margin-top:1em"><h3>Liaison avec l’agent Claude</h3>
+    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine Claude sur claude.ai. Elles sont stockées côté serveur et ne sont jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
+    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, identique dans la routine claude.ai"></label>
+    <label class="champ"><span>URL du déclencheur ${ok('dev_webhook_url')}</span><input id="dvs-url" type="password" autocomplete="off" placeholder="https://… (fournie par la routine claude.ai)"></label>
+    <button class="btn sm" id="dvs-ok">Enregistrer</button></div>`;
+}
+async function enregistrerReglagesDev() {
+  const s = $('#dvs-secret').value; const u = $('#dvs-url').value.trim();
+  try {
+    if (s) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_secret', v: s }); if (error) throw error; }
+    if (u) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_webhook_url', v: u }); if (error) throw error; }
+    toast('Réglages enregistrés'); vueDev();
+  } catch (e) { toast('Enregistrement impossible : ' + esc(e.message || '')); }
+}
+
 /* ============================================================
    Navigation, chargement des données, temps réel, démarrage
    ============================================================ */
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
   ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '☑️', 'Tâches', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
+  ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
+const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
   const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
   const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
-  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2]}</span>${badge(k[0])}</button>`;
-  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${VUES.map(btn).join('')}`;
-  $('#tabs').innerHTML = VUES.map(btn).join('');
+  const devOuv = (state.dev || []).filter(d => ['question', 'livrée'].includes(d.status) && !d.vu).length;
+  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
+  const vs = vuesVisibles();
+  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(btn).join('')}`;
+  $('#tabs').innerHTML = vs.map(btn).join('');
+  $('#tabs').style.gridTemplateColumns = `repeat(${vs.length},1fr)`;
   $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
   const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }
   document.title = (nl ? `(${nl}) ` : '') + 'Kaporo';
@@ -846,6 +946,11 @@ function brancherTempsReel() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_phases' }, maj('kp_phases', 'phases', (a, b) => a.num - b.num))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_dev_requests' }, async p => {
+      if (!state.moi?.is_admin) return; await chargerDev();
+      if (p.new && ['question', 'livrée', 'erreur'].includes(p.new.status) && p.old?.status !== p.new.status) toast(`<b>Claude · ${esc(p.new.title)}</b><br>${p.new.status === 'livrée' ? 'Livrée : rechargez l’application pour voir le résultat.' : p.new.status === 'question' ? 'Claude a une question.' : 'Erreur pendant la réalisation.'}`, 6000);
+      if (state.vue === 'dev' && !document.activeElement?.matches('input,select,textarea')) vueDev(); else renderNav();
+    })
     .subscribe(st => { setConn(st === 'SUBSCRIBED', st === 'SUBSCRIBED' ? 'En direct' : st === 'CHANNEL_ERROR' ? 'Reconnexion…' : 'Connexion…'); });
   // Nouveaux membres : rafraîchir la liste (pas de temps réel sur la table, on recharge à la demande)
   c.from('kp_members').select('*').order('created_at').then(r => { if (r.data) state.membres = r.data; });
@@ -861,7 +966,8 @@ async function demarrerSession(session) {
     msgLogin('err', 'Chargement impossible : ' + esc(e.message)); return;
   }
   $('#login').hidden = true; $('#app').hidden = false;
-  go(VUES.find(v => v[0] === state.vue) ? state.vue : 'discussions');
+  if (state.moi.is_admin) await chargerDev();
+  go(vuesVisibles().find(v => v[0] === state.vue) ? state.vue : 'discussions');
   brancherTempsReel();
   if (state.vue === 'discussions' && window.matchMedia('(max-width:820px)').matches && totalNonLus() === 0 && state.canal) { /* on reste sur la liste des canaux */ }
 }

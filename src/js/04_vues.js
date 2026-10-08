@@ -219,3 +219,98 @@ async function vueEquipe() {
     await state.client.from('kp_allowed').delete().eq('email', b.dataset.retirer); vueEquipe();
   }));
 }
+
+/* ---- Développement (administrateur) : demandes transmises à l'agent Claude ---- */
+const STATUTS_DEV = { 'envoyée': ['bleu', 'Transmise'], 'en cours': ['ambre', 'En cours'], 'question': ['ambre', 'Question'], 'livrée': ['', 'Livrée'], 'abandonnée': ['gris', 'Abandonnée'], 'erreur': ['rouge', 'Erreur'] };
+async function chargerDev() {
+  const { data, error } = await state.client.from('kp_dev_requests').select('*').order('created_at', { ascending: false });
+  if (!error) state.dev = data || [];
+}
+async function vueDev() {
+  const main = $('#main'); main.className = '';
+  if (!state.moi.is_admin) { main.innerHTML = '<div class="vide">Module réservé à l’administrateur.</div>'; return; }
+  if (!state.dev) await chargerDev();
+  const ouvertes = state.dev.filter(d => !['livrée', 'abandonnée'].includes(d.status));
+  const closes = state.dev.filter(d => ['livrée', 'abandonnée'].includes(d.status));
+  main.innerHTML = `<div class="vue"><h1>Développement</h1><p class="sous">Décrivez une modification ou un ajustement de l’application. La demande part automatiquement vers l’agent Claude, qui la réalise, publie la nouvelle version et vous répond ici. Comptez quelques minutes.</p>
+    <div class="g g2">
+      <div class="carte accent"><h3>Nouvelle demande</h3>
+        <label class="champ"><span>En une ligne</span><input id="dv-titre" placeholder="Ex. Ajouter un filtre par membre dans Tâches"></label>
+        <label class="champ"><span>Détail (ce que vous voulez voir, où, pourquoi)</span><textarea id="dv-detail" rows="5" placeholder="Plus c’est précis, plus le résultat sera juste du premier coup."></textarea></label>
+        <label class="champ"><span>Capture d’écran (facultatif)</span><input type="file" id="dv-file" accept="image/*"></label>
+        <button class="btn prim" id="dv-ok">Envoyer à Claude</button>
+        <p class="sm muted" style="margin-top:.8em">Après « Livrée », rechargez l’application pour voir le résultat (sur téléphone : fermer et rouvrir).</p></div>
+      <div class="carte"><h3>En cours <small>${ouvertes.length}</small></h3>${ouvertes.length ? ouvertes.map(carteDev).join('') : '<div class="vide">Aucune demande en cours.</div>'}</div>
+    </div>
+    <div class="carte" style="margin-top:1em"><h3>Historique <small>${closes.length}</small></h3>${closes.length ? closes.map(carteDev).join('') : '<div class="vide">Rien encore.</div>'}</div>
+    ${await carteReglagesDev()}</div>`;
+  $('#dv-ok').addEventListener('click', envoyerDev);
+  $('#dvs-ok').addEventListener('click', enregistrerReglagesDev);
+  $$('[data-dv-rep]').forEach(b => b.addEventListener('click', () => repondreDev(b.dataset.dvRep)));
+  $$('[data-dv-stop]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Abandonner cette demande ?')) return;
+    await state.client.from('kp_dev_requests').update({ status: 'abandonnée' }).eq('id', b.dataset.dvStop); await chargerDev(); vueDev();
+  }));
+  $$('[data-dv-reload]').forEach(b => b.addEventListener('click', () => location.reload()));
+}
+function carteDev(d) {
+  const [cls, lib] = STATUTS_DEV[d.status] || ['gris', d.status];
+  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr"><span class="s">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
+  return `<div class="ligne" style="display:block"><div style="display:flex;justify-content:space-between;gap:.8em;align-items:center"><b>${esc(d.title)}</b><span class="etat ${cls}">${lib}</span></div>
+    <small>${dateFr(d.created_at)} ${hhmm(new Date(d.created_at))}${d.commit_sha ? ' · version ' + esc(d.commit_sha.slice(0, 7)) : ''}</small>
+    ${d.detail ? `<p class="sm" style="white-space:pre-wrap;margin:.4em 0">${esc(d.detail)}</p>` : ''}
+    ${fil ? `<div style="margin:.5em 0">${fil}</div>` : ''}
+    <div class="actions" style="margin-top:.5em">
+      ${d.status === 'livrée' ? '<button class="btn sm or" data-dv-reload>Recharger l’application</button>' : ''}
+      ${['question', 'livrée', 'erreur'].includes(d.status) ? `<button class="btn sm" data-dv-rep="${d.id}">${d.status === 'question' ? 'Répondre' : 'Demander un ajustement'}</button>` : ''}
+      ${!['livrée', 'abandonnée'].includes(d.status) ? `<button class="btn sm" data-dv-stop="${d.id}">Abandonner</button>` : ''}
+    </div></div>`;
+}
+async function envoyerDev() {
+  const title = $('#dv-titre').value.trim(); const detail = $('#dv-detail').value.trim();
+  if (!title) { toast('Décrivez la demande en une ligne'); return; }
+  const btn = $('#dv-ok'); btn.disabled = true;
+  try {
+    let attachment = null; const f = $('#dv-file').files[0];
+    if (f) { toast('Envoi de la capture…', 8000); attachment = await televerser(f, 'dev'); }
+    const thread = [{ who: 'paul', text: detail || title, at: new Date().toISOString() }];
+    const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread, created_by: state.moi.user_id });
+    if (error) throw error;
+    await chargerDev(); vueDev(); toast('<b>Demande transmise à Claude.</b> Vous serez prévenu ici.');
+  } catch (e) { console.error(e); toast('Envoi impossible : ' + esc(e.message || '')); btn.disabled = false; }
+}
+function repondreDev(id) {
+  const d = state.dev.find(x => x.id === id); if (!d) return;
+  modal(`<h3>${d.status === 'question' ? 'Répondre à Claude' : 'Demander un ajustement'}</h3>
+    <p class="sm muted" style="margin-bottom:.6em">${esc(d.title)}</p>
+    <label class="champ"><span>Votre message</span><textarea id="dv-msg" rows="5"></textarea></label>
+    <div class="actions"><button class="btn prim" id="dv-msg-ok">Envoyer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#dv-msg-ok', mo).addEventListener('click', async () => {
+      const text = $('#dv-msg').value.trim(); if (!text) return;
+      const thread = (d.thread || []).concat([{ who: 'paul', text, at: new Date().toISOString() }]);
+      const { error } = await state.client.from('kp_dev_requests').update({ thread, status: 'envoyée' }).eq('id', id);
+      if (error) { toast('Envoi impossible'); return; }
+      fermerModal(); await chargerDev(); vueDev(); toast('Message transmis à Claude');
+    });
+  });
+}
+
+/* Réglages du module Développement : secret partagé et URL du déclencheur (saisis par l'administrateur, jamais relus) */
+async function carteReglagesDev() {
+  let etat = {};
+  try { const { data } = await state.client.rpc('kp_dev_settings_state'); etat = data || {}; } catch (e) { }
+  const ok = k => etat[k] ? '<span class="etat">renseigné</span>' : '<span class="etat rouge">manquant</span>';
+  return `<div class="carte" style="margin-top:1em"><h3>Liaison avec l’agent Claude</h3>
+    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine Claude sur claude.ai. Elles sont stockées côté serveur et ne sont jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
+    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, identique dans la routine claude.ai"></label>
+    <label class="champ"><span>URL du déclencheur ${ok('dev_webhook_url')}</span><input id="dvs-url" type="password" autocomplete="off" placeholder="https://… (fournie par la routine claude.ai)"></label>
+    <button class="btn sm" id="dvs-ok">Enregistrer</button></div>`;
+}
+async function enregistrerReglagesDev() {
+  const s = $('#dvs-secret').value; const u = $('#dvs-url').value.trim();
+  try {
+    if (s) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_secret', v: s }); if (error) throw error; }
+    if (u) { const { error } = await state.client.rpc('kp_dev_set_setting', { k: 'dev_webhook_url', v: u }); if (error) throw error; }
+    toast('Réglages enregistrés'); vueDev();
+  } catch (e) { toast('Enregistrement impossible : ' + esc(e.message || '')); }
+}

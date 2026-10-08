@@ -1,0 +1,1 @@
+-- Migrations proposées par l'agent de développement (à appliquer avec Claude Code)
