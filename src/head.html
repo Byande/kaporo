@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0C1C35">
-<meta name="description" content="Kaporo — espace de travail sécurisé des programmes Kaporo 1 et Kaporo 2 (Conakry) : discussions, documents, décisions, phases, tâches.">
+<meta name="description" content="Kaporo — espace de travail sécurisé des programmes Kaporo 1 et Kaporo 2 (Conakry) : discussions, documents, décisions, suivi, rédaction collaborative, budget.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kaporo">
@@ -342,6 +342,62 @@ select.inline{border:1px solid var(--trait);border-radius:.4em;padding:.25em .4e
   .glab{width:10em}.glignes{left:10em}
   .gantt{font-size:.88em}
   .suivi-tete .actions{width:100%}
+}
+
+/* ---- Rédaction ---- */
+.rdoc{display:grid;grid-template-columns:auto 1fr auto;gap:.8em;align-items:center}
+.rdoc .ic{font-size:1.6em}
+.redac{display:flex;flex-direction:column;height:calc(100dvh - var(--top-h) - 2.4em);min-height:0}
+.redac-tete{display:flex;align-items:center;gap:.5em;flex-wrap:wrap;padding-bottom:.6em;border-bottom:1px solid var(--trait);margin-bottom:.6em}
+.rtitre{font-family:var(--serif);font-size:1.35em;flex:1;min-width:12em;border:0;border-bottom:1px solid transparent;background:none;padding:.2em 0}
+.rtitre:focus{outline:0;border-bottom-color:var(--or)}
+.presence{display:inline-flex;align-items:center;gap:.2em}
+.presence .avatar{margin-left:-.35em;box-shadow:0 0 0 2px var(--ivoire)}
+.presence .avatar:first-child{margin-left:0}
+.presence small{margin-left:.5em}
+.redac-corps{display:grid;grid-template-columns:1fr 17em;gap:1em;flex:1;min-height:0}
+.redac-corps.sans-aside{grid-template-columns:1fr}
+.redac-corps.sans-aside .redac-aside{display:none}
+.redac-page{display:flex;flex-direction:column;min-height:0;background:var(--papier);border:1px solid var(--trait);border-radius:var(--r);overflow:hidden}
+.redac-page .ql-toolbar.ql-snow{border:0;border-bottom:1px solid var(--trait);background:#FBF9F4;font-family:var(--sans)}
+.redac-page .ql-container.ql-snow{border:0;flex:1;min-height:0;font-family:var(--sans);font-size:1.02em}
+.redac-page .ql-editor{padding:2em clamp(1.2em,6vw,4em);line-height:1.55;max-width:52em;margin:0 auto}
+.redac-page .ql-editor h1,.redac-page .ql-editor h2,.redac-page .ql-editor h3{font-family:var(--serif);font-weight:400}
+.redac-aside{background:var(--papier);border:1px solid var(--trait);border-radius:var(--r);padding:.9em 1em;overflow:auto;min-height:0}
+.redac-aside h3{font-size:1.05em;margin-bottom:.3em}
+.redac-aside h3 small{font-family:var(--sans);font-size:.75em;color:var(--pierre)}
+.apercu{max-height:55dvh;overflow:auto;border:1px solid var(--trait);border-radius:.4em}
+.apercu .ql-editor{padding:1em 1.4em}
+.ql-cursor-flag{font-family:var(--sans)!important}
+.plus-liste{display:grid;gap:.5em}
+.plus-liste .btn{justify-content:flex-start;padding:.8em 1em;font-size:1.05em}
+.plus-liste .btn .bd{margin-left:auto}
+/* ---- Budget ---- */
+.kpis.kpis7{grid-template-columns:repeat(7,1fr)}
+.kpi .jauge{margin-top:.5em}
+table.tb{width:100%;border-collapse:collapse;font-size:.92em}
+table.tb th{text-align:left;font-size:.76em;text-transform:uppercase;letter-spacing:.05em;color:var(--pierre);padding:.4em .4em;border-bottom:1px solid var(--trait)}
+table.tb td{padding:.5em .4em;border-top:1px solid var(--grille);vertical-align:middle}
+table.tb .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.tb td.dep{color:var(--rouge);font-weight:700}
+table.tb tr.cat td{background:var(--ivoire);font-weight:700;border-top:1px solid var(--trait)}
+table.tb tr.cli{cursor:pointer}
+table.tb tr.cli:hover td{background:#FBF9F4}
+table.tb tr.cli td b{display:block;font-weight:600}
+table.tb tr.cli td small{display:block}
+table.tb tr.total td{font-weight:700;border-top:2px solid var(--encre);background:var(--or-fond)}
+table.tb .jauge{margin-bottom:.15em}
+.mvt .actions{flex-wrap:nowrap}
+@media (max-width:1100px){.kpis.kpis7{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:820px){
+  .kpis.kpis7{grid-template-columns:repeat(2,1fr)}
+  .redac{height:calc(100dvh - var(--top-h) - var(--tab-h) - var(--sab) - 1.8em)}
+  .redac-corps{grid-template-columns:1fr}
+  .redac-corps:not(.sans-aside) .redac-page{display:none}
+  .redac-page .ql-editor{padding:1em .9em}
+  .rtitre{min-width:0;width:100%;order:-1}
+  table.tb{font-size:.8em}table.tb th:nth-child(5),table.tb td:nth-child(5),table.tb th:nth-child(6),table.tb td:nth-child(6){display:none}
+  .rdoc{grid-template-columns:auto 1fr}.rdoc .actions{grid-column:1/-1}
 }
 
 /* ---- Mobile ---- */

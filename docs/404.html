@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
 <meta name="theme-color" content="#0C1C35">
-<meta name="description" content="Kaporo — espace de travail sécurisé des programmes Kaporo 1 et Kaporo 2 (Conakry) : discussions, documents, décisions, phases, tâches.">
+<meta name="description" content="Kaporo — espace de travail sécurisé des programmes Kaporo 1 et Kaporo 2 (Conakry) : discussions, documents, décisions, suivi, rédaction collaborative, budget.">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kaporo">
@@ -342,6 +342,62 @@ select.inline{border:1px solid var(--trait);border-radius:.4em;padding:.25em .4e
   .glab{width:10em}.glignes{left:10em}
   .gantt{font-size:.88em}
   .suivi-tete .actions{width:100%}
+}
+
+/* ---- Rédaction ---- */
+.rdoc{display:grid;grid-template-columns:auto 1fr auto;gap:.8em;align-items:center}
+.rdoc .ic{font-size:1.6em}
+.redac{display:flex;flex-direction:column;height:calc(100dvh - var(--top-h) - 2.4em);min-height:0}
+.redac-tete{display:flex;align-items:center;gap:.5em;flex-wrap:wrap;padding-bottom:.6em;border-bottom:1px solid var(--trait);margin-bottom:.6em}
+.rtitre{font-family:var(--serif);font-size:1.35em;flex:1;min-width:12em;border:0;border-bottom:1px solid transparent;background:none;padding:.2em 0}
+.rtitre:focus{outline:0;border-bottom-color:var(--or)}
+.presence{display:inline-flex;align-items:center;gap:.2em}
+.presence .avatar{margin-left:-.35em;box-shadow:0 0 0 2px var(--ivoire)}
+.presence .avatar:first-child{margin-left:0}
+.presence small{margin-left:.5em}
+.redac-corps{display:grid;grid-template-columns:1fr 17em;gap:1em;flex:1;min-height:0}
+.redac-corps.sans-aside{grid-template-columns:1fr}
+.redac-corps.sans-aside .redac-aside{display:none}
+.redac-page{display:flex;flex-direction:column;min-height:0;background:var(--papier);border:1px solid var(--trait);border-radius:var(--r);overflow:hidden}
+.redac-page .ql-toolbar.ql-snow{border:0;border-bottom:1px solid var(--trait);background:#FBF9F4;font-family:var(--sans)}
+.redac-page .ql-container.ql-snow{border:0;flex:1;min-height:0;font-family:var(--sans);font-size:1.02em}
+.redac-page .ql-editor{padding:2em clamp(1.2em,6vw,4em);line-height:1.55;max-width:52em;margin:0 auto}
+.redac-page .ql-editor h1,.redac-page .ql-editor h2,.redac-page .ql-editor h3{font-family:var(--serif);font-weight:400}
+.redac-aside{background:var(--papier);border:1px solid var(--trait);border-radius:var(--r);padding:.9em 1em;overflow:auto;min-height:0}
+.redac-aside h3{font-size:1.05em;margin-bottom:.3em}
+.redac-aside h3 small{font-family:var(--sans);font-size:.75em;color:var(--pierre)}
+.apercu{max-height:55dvh;overflow:auto;border:1px solid var(--trait);border-radius:.4em}
+.apercu .ql-editor{padding:1em 1.4em}
+.ql-cursor-flag{font-family:var(--sans)!important}
+.plus-liste{display:grid;gap:.5em}
+.plus-liste .btn{justify-content:flex-start;padding:.8em 1em;font-size:1.05em}
+.plus-liste .btn .bd{margin-left:auto}
+/* ---- Budget ---- */
+.kpis.kpis7{grid-template-columns:repeat(7,1fr)}
+.kpi .jauge{margin-top:.5em}
+table.tb{width:100%;border-collapse:collapse;font-size:.92em}
+table.tb th{text-align:left;font-size:.76em;text-transform:uppercase;letter-spacing:.05em;color:var(--pierre);padding:.4em .4em;border-bottom:1px solid var(--trait)}
+table.tb td{padding:.5em .4em;border-top:1px solid var(--grille);vertical-align:middle}
+table.tb .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+table.tb td.dep{color:var(--rouge);font-weight:700}
+table.tb tr.cat td{background:var(--ivoire);font-weight:700;border-top:1px solid var(--trait)}
+table.tb tr.cli{cursor:pointer}
+table.tb tr.cli:hover td{background:#FBF9F4}
+table.tb tr.cli td b{display:block;font-weight:600}
+table.tb tr.cli td small{display:block}
+table.tb tr.total td{font-weight:700;border-top:2px solid var(--encre);background:var(--or-fond)}
+table.tb .jauge{margin-bottom:.15em}
+.mvt .actions{flex-wrap:nowrap}
+@media (max-width:1100px){.kpis.kpis7{grid-template-columns:repeat(4,1fr)}}
+@media (max-width:820px){
+  .kpis.kpis7{grid-template-columns:repeat(2,1fr)}
+  .redac{height:calc(100dvh - var(--top-h) - var(--tab-h) - var(--sab) - 1.8em)}
+  .redac-corps{grid-template-columns:1fr}
+  .redac-corps:not(.sans-aside) .redac-page{display:none}
+  .redac-page .ql-editor{padding:1em .9em}
+  .rtitre{min-width:0;width:100%;order:-1}
+  table.tb{font-size:.8em}table.tb th:nth-child(5),table.tb td:nth-child(5),table.tb th:nth-child(6),table.tb td:nth-child(6){display:none}
+  .rdoc{grid-template-columns:auto 1fr}.rdoc .actions{grid-column:1/-1}
 }
 
 /* ---- Mobile ---- */
@@ -1653,13 +1709,473 @@ function exporterCSV() {
 }
 
 /* ============================================================
+   Rédaction : documents co-édités en temps réel (Yjs + Quill), présence, versions, import/export Word
+   ============================================================ */
+const CDN = {
+  quill: 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js', quillCss: 'https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css',
+  cursors: 'https://cdn.jsdelivr.net/npm/quill-cursors@4.0.4/dist/quill-cursors.js',
+  mammoth: 'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js', docx: 'https://cdn.jsdelivr.net/npm/html-docx-js@0.3.1/dist/html-docx.js',
+  yjs: 'https://esm.sh/yjs@13.6.20', yquill: 'https://esm.sh/y-quill@1.0.0?deps=yjs@13.6.20,y-protocols@1.0.6', aw: 'https://esm.sh/y-protocols@1.0.6/awareness?deps=yjs@13.6.20',
+};
+const CATEGORIES_DOC = ['Note', 'Compte rendu', 'Courrier', 'Rapport', 'Contrat', 'Cahier des charges', 'Procès-verbal', 'Autre'];
+const KP = {};
+state.docs = []; state.redac = { ouvert: null, session: null, aside: window.innerWidth > 820 };
+const u8ToB64 = u => { let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode.apply(null, u.subarray(i, i + 0x8000)); return btoa(s); };
+const b64ToU8 = b => Uint8Array.from(atob(b), c => c.charCodeAt(0));
+const scriptsCharges = {};
+function chargerScript(url, css) {
+  if (scriptsCharges[url]) return scriptsCharges[url];
+  scriptsCharges[url] = new Promise((res, rej) => {
+    const el = css ? Object.assign(document.createElement('link'), { rel: 'stylesheet', href: url }) : Object.assign(document.createElement('script'), { src: url, crossOrigin: 'anonymous' });
+    el.onload = res; el.onerror = () => { delete scriptsCharges[url]; rej(new Error('Chargement impossible : ' + url)); }; document.head.appendChild(el);
+  });
+  return scriptsCharges[url];
+}
+let editeurPret = null;
+function chargerEditeur() {
+  if (editeurPret) return editeurPret;
+  editeurPret = (async () => {
+    await Promise.all([chargerScript(CDN.quillCss, true), chargerScript(CDN.quill)]);
+    await chargerScript(CDN.cursors);
+    const [Y, YQ, AW] = await Promise.all([import(CDN.yjs), import(CDN.yquill), import(CDN.aw)]);
+    window.Quill.register('modules/cursors', window.QuillCursors);
+    Object.assign(KP, { Y, QuillBinding: YQ.QuillBinding, Awareness: AW.Awareness, encodeAw: AW.encodeAwarenessUpdate, applyAw: AW.applyAwarenessUpdate, removeAw: AW.removeAwarenessStates });
+  })().catch(e => { editeurPret = null; throw e; });
+  return editeurPret;
+}
+
+/* ---- Liste des documents ---- */
+function vueRedaction() {
+  const main = $('#main'); main.className = '';
+  if (state.redac.session) fermerDoc();
+  const docs = state.docs.filter(d => !d.archived && passeFiltre('filtreDoc', d.project_id)).sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+  main.innerHTML = `<div class="vue"><h1>Rédaction</h1><p class="sous">Documents rédigés à plusieurs, en même temps : chacun voit ce que les autres écrivent, chaque version est conservée. Importez un fichier Word pour le reprendre ici, exportez en Word quand c’est prêt.</p>
+    <div class="actions" style="margin-bottom:1em"><button class="btn prim" id="r-nouveau">＋ Nouveau document</button><button class="btn" id="r-import">⬆ Importer un Word (.docx)</button><input type="file" id="r-file" accept=".docx" hidden></div>
+    ${filtresProjet('filtreDoc')}
+    <div class="g g2">${docs.length ? docs.map(carteDoc).join('') : '<div class="vide">Aucun document. Créez-en un ou importez un fichier Word.</div>'}</div></div>`;
+  brancherFiltres('filtreDoc', vueRedaction);
+  $('#r-nouveau').addEventListener('click', () => formDoc());
+  $('#r-import').addEventListener('click', () => $('#r-file').click());
+  $('#r-file').addEventListener('change', e => { const f = e.target.files[0]; if (f) importerWord(f); });
+  $$('[data-doc-ouvrir]').forEach(b => b.addEventListener('click', () => ouvrirDoc(b.dataset.docOuvrir)));
+  $$('[data-doc-suppr]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Supprimer ce document et tout son historique ?')) return;
+    const { error } = await state.client.from('kp_docs').delete().eq('id', b.dataset.docSuppr);
+    if (error) { toast('Suppression impossible'); return; }
+    state.docs = state.docs.filter(d => d.id !== b.dataset.docSuppr); vueRedaction();
+  }));
+}
+function carteDoc(d) {
+  const m = membre(d.updated_by || d.created_by); const mien = d.created_by === state.moi.user_id || state.moi.is_admin;
+  return `<div class="carte rdoc"><div class="ic">📝</div><div style="min-width:0"><h3 style="margin:0;font-size:1.1em">${esc(d.title)}</h3><small class="muted">${esc(d.category)} · ${esc(nomProjet(d.project_id))}<br>Modifié ${jourRelatif(d.updated_at).toLowerCase()} à ${hhmm(new Date(d.updated_at))} par ${esc(m.name)}</small></div>
+    <div class="actions"><button class="btn sm prim" data-doc-ouvrir="${d.id}">Ouvrir</button>${mien ? `<button class="btn sm" data-doc-suppr="${d.id}" title="Supprimer">✕</button>` : ''}</div></div>`;
+}
+function formDoc() {
+  const pid = state.filtreDoc === 'tous' ? 'kaporo1' : state.filtreDoc;
+  modal(`<h3>Nouveau document</h3>
+    <label class="champ"><span>Titre</span><input id="nd-titre" placeholder="Ex. Compte rendu de la visite du 10 octobre"></label>
+    <div class="ligne2"><label class="champ"><span>Projet</span><select id="nd-projet">${optionsProjets(pid)}</select></label>
+      <label class="champ"><span>Type</span><select id="nd-cat">${CATEGORIES_DOC.map(c => `<option>${c}</option>`).join('')}</select></label></div>
+    <div class="actions"><button class="btn prim" id="nd-ok">Créer et ouvrir</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#nd-titre', mo).focus();
+    $('#nd-titre', mo).addEventListener('keydown', e => { if (e.key === 'Enter') $('#nd-ok', mo).click(); });
+    $('#nd-ok', mo).addEventListener('click', async () => {
+      const title = $('#nd-titre').value.trim(); if (!title) { toast('Donnez un titre'); return; }
+      const d = await creerDoc({ title, project_id: $('#nd-projet').value || null, category: $('#nd-cat').value });
+      if (d) { fermerModal(); ouvrirDoc(d.id); }
+    });
+  });
+}
+async function creerDoc(champs) {
+  const { data, error } = await state.client.from('kp_docs').insert({ ...champs, created_by: state.moi.user_id, updated_by: state.moi.user_id }).select('id,project_id,title,category,created_by,created_at,updated_by,updated_at,archived').single();
+  if (error) { toast('Création impossible : ' + esc(error.message)); return null; }
+  if (!state.docs.find(d => d.id === data.id)) state.docs.unshift(data);
+  return data;
+}
+async function importerWord(f) {
+  toast('Conversion du fichier Word…', 8000);
+  try {
+    await chargerScript(CDN.mammoth);
+    const r = await window.mammoth.convertToHtml({ arrayBuffer: await f.arrayBuffer() });
+    const pid = state.filtreDoc === 'tous' ? 'kaporo1' : state.filtreDoc;
+    const d = await creerDoc({ title: f.name.replace(/\.docx$/i, ''), project_id: pid || null, category: 'Autre', content_html: r.value });
+    if (d) { toast(`<b>Document importé.</b>${r.messages.length ? ' Certains éléments de mise en page n’ont pas été repris.' : ''}`); ouvrirDoc(d.id); }
+  } catch (e) { console.error(e); toast('Import impossible : ' + esc(e.message || '')); }
+}
+
+/* ---- Éditeur ---- */
+async function ouvrirDoc(id) {
+  const main = $('#main'); main.className = '';
+  main.innerHTML = '<div class="vide">Ouverture du document…</div>';
+  state.vue = 'redaction'; renderNav();
+  try {
+    const [, { data: doc, error }, { data: versions }] = await Promise.all([chargerEditeur(),
+      state.client.from('kp_docs').select('*').eq('id', id).single(),
+      state.client.from('kp_doc_versions').select('id,num,label,author,created_at').eq('doc_id', id).order('num', { ascending: false })]);
+    if (error || !doc) throw error || new Error('Document introuvable');
+    const i = state.docs.findIndex(d => d.id === id); const meta = { ...doc }; delete meta.content_html; delete meta.ystate; if (i >= 0) state.docs[i] = meta; else state.docs.unshift(meta);
+    state.redac.ouvert = id;
+    rendreEditeur(doc, versions || []);
+  } catch (e) { console.error(e); main.innerHTML = `<div class="vue"><div class="vide">Impossible d’ouvrir le document : ${esc(e.message || '')}<br><br><button class="btn" onclick="vueRedaction()">← Retour</button></div></div>`; }
+}
+function rendreEditeur(doc, versions) {
+  const main = $('#main'); const r = state.redac;
+  main.innerHTML = `<div class="redac">
+    <div class="redac-tete">
+      <button class="btn sm" id="r-retour" title="Retour à la liste">←</button>
+      <input class="rtitre" id="r-titre" value="${esc(doc.title)}" placeholder="Titre du document">
+      <select class="inline" id="r-projet">${optionsProjets(doc.project_id || '')}</select>
+      <select class="inline" id="r-cat">${CATEGORIES_DOC.map(c => `<option ${c === doc.category ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <span class="presence" id="r-presence" title="Personnes sur ce document"></span>
+      <span class="etat gris" id="r-etat">Chargé</span>
+      <div class="actions"><button class="btn sm" id="r-version" title="Figer une version nommée">💾 Version</button><button class="btn sm" id="r-word" title="Télécharger en Word">⬇ Word</button><button class="btn sm ${r.aside ? 'prim' : ''}" id="r-hist">🕘 Historique</button></div>
+    </div>
+    <div class="redac-corps ${r.aside ? '' : 'sans-aside'}">
+      <div class="redac-page"><div id="qeditor"></div></div>
+      <aside class="redac-aside" id="r-aside"><h3>Historique <small id="r-nbv"></small></h3><p class="sm muted">Une version est enregistrée automatiquement toutes les dix minutes d’écriture, ou à la demande avec le bouton Version.</p><div id="r-versions"></div></aside>
+    </div></div>`;
+  const s = demarrerSessionDoc(doc, versions);
+  $('#r-retour').addEventListener('click', () => go('redaction'));
+  $('#r-hist').addEventListener('click', () => { r.aside = !r.aside; $('.redac-corps').classList.toggle('sans-aside', !r.aside); $('#r-hist').classList.toggle('prim', r.aside); });
+  $('#r-titre').addEventListener('change', e => majMetaDoc(s, { title: e.target.value.trim() || doc.title }));
+  $('#r-projet').addEventListener('change', e => majMetaDoc(s, { project_id: e.target.value || null }));
+  $('#r-cat').addEventListener('change', e => majMetaDoc(s, { category: e.target.value }));
+  $('#r-version').addEventListener('click', () => modal(`<h3>Figer une version</h3><label class="champ"><span>Nom de la version (facultatif)</span><input id="v-label" placeholder="Ex. Envoyée à la banque"></label><div class="actions"><button class="btn prim" id="v-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => { $('#v-label', mo).focus(); $('#v-ok', mo).addEventListener('click', async () => { await creerVersion(s, $('#v-label').value.trim() || null); fermerModal(); toast('Version enregistrée'); }); }));
+  $('#r-word').addEventListener('click', () => exporterWord(s.quill.getSemanticHTML(), $('#r-titre').value));
+  rendreVersions(s);
+}
+function demarrerSessionDoc(doc, versions) {
+  const Y = KP.Y; const ydoc = new Y.Doc();
+  if (doc.ystate) Y.applyUpdate(ydoc, b64ToU8(doc.ystate), 'db');
+  const ytext = ydoc.getText('quill');
+  const awareness = new KP.Awareness(ydoc);
+  awareness.setLocalStateField('user', { name: state.moi.name, color: state.moi.color });
+  const quill = new window.Quill('#qeditor', { theme: 'snow', placeholder: 'Écrivez ici…', modules: { cursors: { transformOnTextChange: true }, history: { userOnly: true },
+    toolbar: [[{ header: [1, 2, 3, false] }], ['bold', 'italic', 'underline', 'strike'], [{ color: [] }, { background: [] }], [{ list: 'ordered' }, { list: 'bullet' }], [{ indent: '-1' }, { indent: '+1' }], [{ align: [] }], ['blockquote', 'link', 'image'], ['clean']] } });
+  const binding = new KP.QuillBinding(ytext, quill, awareness);
+  const s = { id: doc.id, ydoc, ytext, awareness, quill, binding, versions, dirty: false, timer: null, derniereVersionAt: versions[0] ? new Date(versions[0].created_at).getTime() : 0, monId: ydoc.clientID, presence: [] };
+  state.redac.session = s;
+  if (!doc.ystate && doc.content_html) { quill.clipboard.dangerouslyPasteHTML(doc.content_html, 'user'); s.dirty = true; sauverDoc(s); }
+  ydoc.on('update', (u, origin) => { if (origin !== 'remote' && origin !== 'db') { s.chan?.send({ type: 'broadcast', event: 'u', payload: { u: u8ToB64(u) } }); planifierSauvegarde(s); } });
+  awareness.on('update', ({ added, updated, removed }, origin) => { if (origin === 'remote') return; const ids = added.concat(updated, removed); s.chan?.send({ type: 'broadcast', event: 'a', payload: { a: u8ToB64(KP.encodeAw(awareness, ids)) } }); });
+  const chan = state.client.channel('kp-doc-' + doc.id, { config: { broadcast: { self: false }, presence: { key: String(s.monId) } } });
+  s.chan = chan;
+  chan.on('broadcast', { event: 'u' }, ({ payload }) => { try { Y.applyUpdate(ydoc, b64ToU8(payload.u), 'remote'); } catch (e) { console.error(e); } })
+    .on('broadcast', { event: 'a' }, ({ payload }) => { try { KP.applyAw(awareness, b64ToU8(payload.a), 'remote'); } catch (e) { } })
+    .on('broadcast', { event: 'sync-req' }, ({ payload }) => { chan.send({ type: 'broadcast', event: 'sync-res', payload: { to: payload.from, s: u8ToB64(Y.encodeStateAsUpdate(ydoc)) } }); if (awareness.getLocalState()) chan.send({ type: 'broadcast', event: 'a', payload: { a: u8ToB64(KP.encodeAw(awareness, [ydoc.clientID])) } }); })
+    .on('broadcast', { event: 'sync-res' }, ({ payload }) => { if (payload.to === s.monId) { try { Y.applyUpdate(ydoc, b64ToU8(payload.s), 'remote'); } catch (e) { } } })
+    .on('presence', { event: 'sync' }, () => { s.presence = Object.values(chan.presenceState()).flat(); rendrePresence(s); })
+    .subscribe(st => {
+      if (st === 'SUBSCRIBED') { chan.send({ type: 'broadcast', event: 'sync-req', payload: { from: s.monId } }); chan.track({ user_id: state.moi.user_id, name: state.moi.name, color: state.moi.color }); majEtatDoc('En direct'); }
+      else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') majEtatDoc('Hors ligne : vos modifications seront enregistrées à la reconnexion', true);
+    });
+  return s;
+}
+function majEtatDoc(txt, err) { const e = $('#r-etat'); if (!e) return; e.textContent = txt; e.className = 'etat ' + (err ? 'rouge' : txt === 'Enregistré' || txt === 'En direct' ? '' : 'ambre'); }
+function planifierSauvegarde(s) { s.dirty = true; majEtatDoc('Modifications…'); clearTimeout(s.timer); s.timer = setTimeout(() => sauverDoc(s), 2000); }
+async function sauverDoc(s) {
+  if (!s.dirty) return; s.dirty = false;
+  const html = s.quill.getSemanticHTML(); const ystate = u8ToB64(KP.Y.encodeStateAsUpdate(s.ydoc));
+  const { error } = await state.client.from('kp_docs').update({ content_html: html, ystate, updated_by: state.moi.user_id, updated_at: new Date().toISOString() }).eq('id', s.id);
+  if (error) { s.dirty = true; majEtatDoc('Non enregistré, nouvel essai…', true); clearTimeout(s.timer); s.timer = setTimeout(() => sauverDoc(s), 8000); return; }
+  if (!s.dirty) majEtatDoc('Enregistré');
+  const d = state.docs.find(x => x.id === s.id); if (d) { d.updated_at = new Date().toISOString(); d.updated_by = state.moi.user_id; }
+  if (Date.now() - s.derniereVersionAt > 10 * 60000) await creerVersion(s, null, html, ystate);
+}
+async function majMetaDoc(s, patch) {
+  const { error } = await state.client.from('kp_docs').update({ ...patch, updated_by: state.moi.user_id }).eq('id', s.id);
+  if (error) { toast('Modification impossible'); return; }
+  const d = state.docs.find(x => x.id === s.id); if (d) Object.assign(d, patch); toast('Enregistré', 1000);
+}
+function docModifieAilleurs(row) {
+  const i = state.docs.findIndex(d => d.id === row.id); const meta = { ...row }; delete meta.content_html; delete meta.ystate;
+  if (i >= 0) state.docs[i] = meta; else state.docs.unshift(meta);
+  const s = state.redac.session; if (!s || s.id !== row.id) return;
+  const t = $('#r-titre'); if (t && document.activeElement !== t && t.value !== row.title) t.value = row.title;
+  const p = $('#r-projet'); if (p && p.value !== (row.project_id || '')) p.value = row.project_id || '';
+  const c = $('#r-cat'); if (c && c.value !== row.category) c.value = row.category;
+}
+function versionRecue(v) { const s = state.redac.session; if (!s || v.doc_id !== s.id || s.versions.find(x => x.id === v.id)) return; s.versions.unshift({ id: v.id, num: v.num, label: v.label, author: v.author, created_at: v.created_at }); s.versions.sort((a, b) => b.num - a.num); rendreVersions(s); }
+async function creerVersion(s, label, html, ystate) {
+  html = html || s.quill.getSemanticHTML(); ystate = ystate || u8ToB64(KP.Y.encodeStateAsUpdate(s.ydoc));
+  const num = (s.versions[0]?.num || 0) + 1;
+  const { data, error } = await state.client.from('kp_doc_versions').insert({ doc_id: s.id, num, label, content_html: html, ystate, author: state.moi.user_id }).select('id,num,label,author,created_at').single();
+  if (error) { toast('Version non enregistrée'); return; }
+  s.derniereVersionAt = Date.now(); if (!s.versions.find(v => v.id === data.id)) s.versions.unshift(data); rendreVersions(s);
+}
+function rendreVersions(s) {
+  const el = $('#r-versions'); if (!el) return; $('#r-nbv').textContent = s.versions.length || '';
+  el.innerHTML = s.versions.length ? s.versions.map(v => `<div class="ligne vers" data-v="${v.id}" style="cursor:pointer"><div><b class="sm">v${v.num}${v.label ? ' · ' + esc(v.label) : ''}</b><small>${dateFr(v.created_at)} ${hhmm(new Date(v.created_at))} · ${esc(membre(v.author).name)}</small></div><span class="muted">›</span></div>`).join('') : '<div class="vide">Aucune version figée pour l’instant.</div>';
+  $$('.vers', el).forEach(x => x.addEventListener('click', () => apercuVersion(s, s.versions.find(v => v.id === x.dataset.v))));
+}
+function rendrePresence(s) {
+  const el = $('#r-presence'); if (!el) return;
+  const vus = {}; s.presence.forEach(p => { vus[p.user_id] = p; });
+  el.innerHTML = Object.values(vus).map(p => `<span class="avatar xs" style="background:${p.color}" title="${esc(p.name)}">${initiales(p.name)}</span>`).join('') + (Object.keys(vus).length > 1 ? `<small class="muted">${Object.keys(vus).length} en ligne</small>` : '');
+}
+async function apercuVersion(s, v) {
+  if (!v) return;
+  const { data, error } = await state.client.from('kp_doc_versions').select('content_html').eq('id', v.id).single();
+  if (error) { toast('Version indisponible'); return; }
+  modal(`<h3>Version ${v.num}${v.label ? ' · ' + esc(v.label) : ''} <small style="font-family:var(--sans);font-size:.7em;color:var(--pierre)">${dateFr(v.created_at)} ${hhmm(new Date(v.created_at))} · ${esc(membre(v.author).name)}</small></h3>
+    <div class="ql-snow apercu"><div class="ql-editor">${data.content_html}</div></div>
+    <div class="actions" style="margin-top:.8em"><button class="btn prim" id="v-rest">Restaurer cette version</button><button class="btn" id="v-word">⬇ Word</button><button class="btn" onclick="fermerModal()">Fermer</button></div>`, mo => {
+    $('.boite', mo).classList.add('large');
+    $('#v-word', mo).addEventListener('click', () => exporterWord(data.content_html, `${$('#r-titre').value} v${v.num}`));
+    $('#v-rest', mo).addEventListener('click', async () => {
+      if (!confirm(`Remplacer le texte actuel par la version ${v.num} ? Le texte actuel est d’abord figé en version.`)) return;
+      await creerVersion(s, 'Avant restauration de la v' + v.num);
+      s.quill.setContents([], 'user'); s.quill.clipboard.dangerouslyPasteHTML(0, data.content_html, 'user');
+      fermerModal(); toast(`Version ${v.num} restaurée`);
+    });
+  });
+}
+async function exporterWord(html, titre) {
+  try {
+    await chargerScript(CDN.docx);
+    const blob = window.htmlDocx.asBlob(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt}</style></head><body>${html}</body></html>`, { orientation: 'portrait' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = (titre || 'document').replace(/[\\/:*?"<>|]+/g, '-') + '.docx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { console.error(e); toast('Export impossible : ' + esc(e.message || '')); }
+}
+async function fermerDoc() {
+  const s = state.redac.session; if (!s) return;
+  state.redac.session = null; state.redac.ouvert = null;
+  clearTimeout(s.timer);
+  try { if (s.dirty) { s.dirty = true; const html = s.quill.getSemanticHTML(); const ystate = u8ToB64(KP.Y.encodeStateAsUpdate(s.ydoc)); await state.client.from('kp_docs').update({ content_html: html, ystate, updated_by: state.moi.user_id, updated_at: new Date().toISOString() }).eq('id', s.id); } } catch (e) { }
+  try { KP.removeAw(s.awareness, [s.ydoc.clientID], 'app'); } catch (e) { }
+  try { s.binding.destroy(); } catch (e) { }
+  try { await s.chan.untrack(); state.client.removeChannel(s.chan); } catch (e) { }
+  try { s.ydoc.destroy(); } catch (e) { }
+}
+window.addEventListener('pagehide', () => { const s = state.redac.session; if (s?.dirty) { s.dirty = false; sauverDoc(Object.assign(s, { dirty: true })); } });
+
+/* ============================================================
+   Budget : lignes prévisionnelles (dépenses, recettes), engagements, paiements, encaissements, journal
+   ============================================================ */
+const CAT_DEP = ['Foncier', 'Études et diagnostics', 'Honoraires (architecte, BET, contrôle)', 'Autorisations et taxes', 'Travaux gros œuvre', 'Travaux second œuvre', 'VRD et aménagements extérieurs', 'Frais financiers', 'Commercialisation', 'Frais généraux et pilotage', 'Aléas'];
+const CAT_REC = ['Ventes VEFA', 'Ventes après livraison', 'Loyers et exploitation', 'Apports et subventions', 'Autres recettes'];
+const TYPES_MVT = { engagement: ['Engagement', 'bleu'], paiement: ['Paiement', ''], encaissement: ['Encaissement', 'ambre'] };
+state.budget = { lignes: [], mouvements: [], journal: null, projet: localStorage.getItem('kp.budget.projet') || 'kaporo1', onglet: localStorage.getItem('kp.budget.onglet') || 'synthese', devise: localStorage.getItem('kp.budget.devise') || 'GNF', ligne: null };
+const projetBudget = () => state.projets.find(p => p.id === state.budget.projet) || state.projets[0];
+const taux = () => Number(projetBudget()?.gnf_per_eur) || 9600;
+const enDevise = n => state.budget.devise === 'EUR' ? (Number(n) || 0) / taux() : (Number(n) || 0);
+const symDevise = () => state.budget.devise === 'EUR' ? '€' : 'GNF';
+const fmtM = n => Math.round(enDevise(n)).toLocaleString('fr-FR') + ' ' + symDevise();
+function abr(n) {
+  const v = enDevise(n), a = Math.abs(v), d = symDevise();
+  if (a >= 1e9) return (v / 1e9).toLocaleString('fr-FR', { maximumFractionDigits: 2 }) + ' Md ' + d;
+  if (a >= 1e6) return (v / 1e6).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' M ' + d;
+  if (a >= 1e4) return (v / 1e3).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' k ' + d;
+  return Math.round(v).toLocaleString('fr-FR') + ' ' + d;
+}
+const parseMontant = v => { const n = Number(String(v).replace(/\s| | /g, '').replace(',', '.')); if (isNaN(n)) return NaN; return state.budget.devise === 'EUR' ? Math.round(n * taux()) : Math.round(n); };
+const pct = (a, b) => b ? Math.round(a * 100 / b) : 0;
+const somme = (arr, f) => arr.reduce((s, x) => s + (Number(f ? f(x) : x) || 0), 0);
+const mvtsDe = id => state.budget.mouvements.filter(m => m.line_id === id);
+const typeRealise = l => l.kind === 'recette' ? 'encaissement' : 'paiement';
+function totauxLigne(l) { const ms = mvtsDe(l.id); return { prevu: Number(l.planned) || 0, engage: somme(ms.filter(m => m.type === 'engagement'), m => m.amount), realise: somme(ms.filter(m => m.type === typeRealise(l)), m => m.amount) }; }
+function totaux(lignes) { return lignes.reduce((t, l) => { const x = totauxLigne(l); t.prevu += x.prevu; t.engage += x.engage; t.realise += x.realise; return t; }, { prevu: 0, engage: 0, realise: 0 }); }
+const lignesProjet = () => state.budget.lignes.filter(l => l.project_id === state.budget.projet).sort((a, b) => (a.kind > b.kind ? 1 : a.kind < b.kind ? -1 : 0) || a.category.localeCompare(b.category) || (a.sort - b.sort) || a.label.localeCompare(b.label));
+const memoBudget = () => { const b = state.budget; localStorage.setItem('kp.budget.projet', b.projet); localStorage.setItem('kp.budget.onglet', b.onglet); localStorage.setItem('kp.budget.devise', b.devise); };
+
+/* ---- Vue ---- */
+const ONGLETS_BUDGET = [['synthese', 'Synthèse'], ['depenses', 'Dépenses'], ['recettes', 'Recettes'], ['mouvements', 'Mouvements'], ['journal', 'Journal']];
+function vueBudget() {
+  const main = $('#main'); main.className = ''; const b = state.budget; const p = projetBudget();
+  if (!p) { main.innerHTML = '<div class="vide">Aucun projet.</div>'; return; }
+  b.projet = p.id;
+  main.innerHTML = `<div class="vue">
+    <div class="suivi-tete"><div><h1>Budget</h1><p class="sous">Prévu, engagé, réalisé : le budget de chaque programme par poste, avec les mouvements datés et le journal de toutes les modifications. Les montants sont saisis et conservés en GNF.</p></div>
+      <div class="actions"><button class="btn prim" id="b-ligne">＋ Ligne</button><button class="btn" id="b-mvt">＋ Mouvement</button><button class="btn" id="b-csv">⬇ CSV</button></div></div>
+    <div class="onglets">${ONGLETS_BUDGET.map(([k, l]) => `<button class="${b.onglet === k ? 'on' : ''}" data-o="${k}">${l}</button>`).join('')}</div>
+    <div class="barre-filtres"><div class="filtres">${state.projets.map(x => `<button class="${x.id === b.projet ? 'on' : ''}" data-bp="${x.id}">${esc(x.name)}</button>`).join('')}</div>
+      <div class="filtres"><button class="${b.devise === 'GNF' ? 'on' : ''}" data-dev="GNF">GNF</button><button class="${b.devise === 'EUR' ? 'on' : ''}" data-dev="EUR">€ <small>(1 € = ${taux().toLocaleString('fr-FR')} GNF)</small></button></div>
+      ${state.moi.is_admin ? '<button class="btn sm" id="b-taux">Taux</button>' : ''}</div>
+    <div id="budget-corps"></div></div>`;
+  $$('.onglets button').forEach(x => x.addEventListener('click', () => { b.onglet = x.dataset.o; memoBudget(); vueBudget(); }));
+  $$('[data-bp]').forEach(x => x.addEventListener('click', () => { b.projet = x.dataset.bp; memoBudget(); vueBudget(); }));
+  $$('[data-dev]').forEach(x => x.addEventListener('click', () => { b.devise = x.dataset.dev; memoBudget(); vueBudget(); }));
+  $('#b-ligne').addEventListener('click', () => formLigne({ kind: b.onglet === 'recettes' ? 'recette' : 'dépense' }));
+  $('#b-mvt').addEventListener('click', () => formMouvement({}));
+  $('#b-csv').addEventListener('click', exporterBudgetCSV);
+  $('#b-taux')?.addEventListener('click', formTaux);
+  rendreBudget();
+}
+function rendreBudget() {
+  const corps = $('#budget-corps'); if (!corps) return;
+  ({ synthese: rendreSynthese, depenses: c => rendreLignes(c, 'dépense'), recettes: c => rendreLignes(c, 'recette'), mouvements: rendreMouvements, journal: rendreJournal }[state.budget.onglet] || rendreSynthese)(corps);
+  $$('[data-ligne]', corps).forEach(el => el.addEventListener('click', e => { if (e.target.closest('button')) return; ficheLigne(el.dataset.ligne); }));
+  $$('[data-mvt-suppr]', corps).forEach(x => x.addEventListener('click', () => supprimerMouvement(x.dataset.mvtSuppr)));
+}
+function rendreSynthese(corps) {
+  const ls = lignesProjet(); const dep = ls.filter(l => l.kind === 'dépense'), rec = ls.filter(l => l.kind === 'recette');
+  const td = totaux(dep), tr = totaux(rec);
+  const marge = tr.prevu - td.prevu; const treso = tr.realise - td.realise;
+  const parCat = (lignes, cats) => [...new Set([...cats, ...lignes.map(l => l.category)])].map(c => [c, lignes.filter(l => l.category === c)]).filter(([, x]) => x.length).map(([c, x]) => ({ c, ...totaux(x), n: x.length }));
+  const tableau = (titre, rows, total, kind) => `<div class="carte"><h3>${titre} <small>${rows.reduce((s, r) => s + r.n, 0)} ligne${rows.reduce((s, r) => s + r.n, 0) > 1 ? 's' : ''}</small></h3>
+    ${rows.length ? `<table class="tb"><thead><tr><th>Poste</th><th class="num">Prévu</th><th class="num">Engagé</th><th class="num">${kind === 'recette' ? 'Encaissé' : 'Payé'}</th><th class="num">Reste</th><th style="width:7em"></th></tr></thead><tbody>
+      ${rows.map(r => `<tr><td>${esc(r.c)}</td><td class="num">${fmtM(r.prevu)}</td><td class="num ${r.engage > r.prevu ? 'dep' : ''}">${fmtM(r.engage)}</td><td class="num">${fmtM(r.realise)}</td><td class="num">${fmtM(r.prevu - r.engage)}</td><td>${jauge(pct(r.realise, r.prevu), kind === 'recette' ? 'or' : '')}<small class="muted">${pct(r.realise, r.prevu)} %</small></td></tr>`).join('')}
+      <tr class="total"><td>Total</td><td class="num">${fmtM(total.prevu)}</td><td class="num">${fmtM(total.engage)}</td><td class="num">${fmtM(total.realise)}</td><td class="num">${fmtM(total.prevu - total.engage)}</td><td></td></tr></tbody></table>` : `<div class="vide">Aucune ligne. <button class="btn sm" data-structure="${kind}">Créer la structure type</button></div>`}</div>`;
+  const depassements = dep.map(l => ({ l, ...totauxLigne(l) })).filter(x => x.engage > x.prevu);
+  const derniers = state.budget.mouvements.filter(m => ls.find(l => l.id === m.line_id)).sort((a, b) => b.on_date.localeCompare(a.on_date) || b.created_at.localeCompare(a.created_at)).slice(0, 6);
+  corps.innerHTML = `<div class="kpis kpis7">
+      <div class="kpi"><b>${abr(td.prevu)}</b><small>Dépenses prévues</small></div>
+      <div class="kpi"><b>${abr(td.engage)}</b><small>Engagé · ${pct(td.engage, td.prevu)} %</small>${jauge(pct(td.engage, td.prevu), 'bleu')}</div>
+      <div class="kpi"><b>${abr(td.realise)}</b><small>Payé · ${pct(td.realise, td.prevu)} %</small>${jauge(pct(td.realise, td.prevu))}</div>
+      <div class="kpi"><b>${abr(tr.prevu)}</b><small>Recettes prévues</small></div>
+      <div class="kpi"><b>${abr(tr.realise)}</b><small>Encaissé · ${pct(tr.realise, tr.prevu)} %</small>${jauge(pct(tr.realise, tr.prevu), 'or')}</div>
+      <div class="kpi ${marge < 0 ? 'rouge' : 'vert'}"><b>${abr(marge)}</b><small>Marge prévisionnelle · ${pct(marge, td.prevu)} %</small></div>
+      <div class="kpi ${treso < 0 ? 'rouge' : ''}"><b>${abr(treso)}</b><small>Trésorerie à date</small></div></div>
+    ${depassements.length ? `<div class="carte accent" style="margin-bottom:1em"><h3>Dépassements <small>${depassements.length}</small></h3>${depassements.map(x => `<div class="ligne" data-ligne="${x.l.id}" style="cursor:pointer"><div><b class="sm">${esc(x.l.label)}</b><small>${esc(x.l.category)}</small></div><span class="etat rouge">+ ${fmtM(x.engage - x.prevu)}</span></div>`).join('')}</div>` : ''}
+    <div class="g g2">${tableau('Dépenses par poste', parCat(dep, CAT_DEP), td, 'dépense')}${tableau('Recettes par poste', parCat(rec, CAT_REC), tr, 'recette')}
+      <div class="carte"><h3>Derniers mouvements</h3>${derniers.length ? derniers.map(ligneMouvement).join('') : '<div class="vide">Aucun mouvement.</div>'}</div>
+      <div class="carte"><h3>Lecture</h3><p class="sm">• <b>Prévu</b> : le budget de la ligne. • <b>Engagé</b> : contrats, devis signés, commandes. • <b>Payé / encaissé</b> : l’argent réellement sorti ou entré.<br>• <b>Reste</b> = prévu − engagé. Un engagement supérieur au prévu apparaît en dépassement.<br>• <b>Marge prévisionnelle</b> = recettes prévues − dépenses prévues. <b>Trésorerie à date</b> = encaissé − payé.</p><p class="sm muted" style="margin-top:.6em">Chaque création, modification ou suppression est consignée dans l’onglet Journal.</p></div></div>`;
+  $$('[data-structure]', corps).forEach(x => x.addEventListener('click', () => creerStructureType(x.dataset.structure)));
+}
+function rendreLignes(corps, kind) {
+  const ls = lignesProjet().filter(l => l.kind === kind); const cats = [...new Set([...(kind === 'recette' ? CAT_REC : CAT_DEP), ...ls.map(l => l.category)])].map(c => [c, ls.filter(l => l.category === c)]).filter(([, x]) => x.length);
+  const t = totaux(ls); const realLib = kind === 'recette' ? 'Encaissé' : 'Payé';
+  const row = l => { const x = totauxLigne(l); const ph = l.phase_id && phaseDe(l.phase_id); return `<tr data-ligne="${l.id}" class="cli"><td><b>${esc(l.label)}</b><small class="muted">${[l.supplier, ph ? 'Ph. ' + ph.num : null].filter(Boolean).map(esc).join(' · ')}</small></td><td class="num">${fmtM(x.prevu)}</td><td class="num ${x.engage > x.prevu ? 'dep' : ''}">${fmtM(x.engage)}</td><td class="num">${fmtM(x.realise)}</td><td class="num">${fmtM(x.prevu - x.engage)}</td><td>${jauge(pct(x.realise, x.prevu), kind === 'recette' ? 'or' : '')}<small class="muted">${pct(x.realise, x.prevu)} %</small></td></tr>`; };
+  corps.innerHTML = `<div class="carte">${ls.length ? `<table class="tb"><thead><tr><th>Ligne</th><th class="num">Prévu</th><th class="num">Engagé</th><th class="num">${realLib}</th><th class="num">Reste</th><th style="width:7em"></th></tr></thead><tbody>
+    ${cats.map(([c, x]) => { const tc = totaux(x); return `<tr class="cat"><td>${esc(c)} <small class="muted">${x.length}</small></td><td class="num">${fmtM(tc.prevu)}</td><td class="num">${fmtM(tc.engage)}</td><td class="num">${fmtM(tc.realise)}</td><td class="num">${fmtM(tc.prevu - tc.engage)}</td><td></td></tr>${x.map(row).join('')}`; }).join('')}
+    <tr class="total"><td>Total ${kind === 'recette' ? 'recettes' : 'dépenses'}</td><td class="num">${fmtM(t.prevu)}</td><td class="num">${fmtM(t.engage)}</td><td class="num">${fmtM(t.realise)}</td><td class="num">${fmtM(t.prevu - t.engage)}</td><td></td></tr></tbody></table>` : `<div class="vide">Aucune ligne de ${kind}. <button class="btn sm" data-structure="${kind}">Créer la structure type</button> ou ajoutez une ligne.</div>`}
+    <p class="sm muted" style="margin-top:.6em">Cliquez une ligne pour la modifier ou saisir un mouvement.</p></div>`;
+  $$('[data-structure]', corps).forEach(x => x.addEventListener('click', () => creerStructureType(x.dataset.structure)));
+}
+function ligneMouvement(m) {
+  const l = state.budget.lignes.find(x => x.id === m.line_id); const [lib, cls] = TYPES_MVT[m.type] || [m.type, 'gris'];
+  return `<div class="ligne mvt"><div style="min-width:0"><b class="sm">${esc(m.label || (l ? l.label : ''))}</b><small>${dateFr(m.on_date)} · ${l ? esc(l.label) + ' · ' : ''}${esc(membre(m.created_by).name)}${m.ref ? ' · réf. ' + esc(m.ref) : ''}</small></div>
+    <span class="actions"><span class="etat ${cls}">${lib}</span><b class="num">${fmtM(m.amount)}</b><button class="btn sm" data-mvt-suppr="${m.id}" title="Supprimer">✕</button></span></div>`;
+}
+function rendreMouvements(corps) {
+  const ids = new Set(lignesProjet().map(l => l.id)); const b = state.budget;
+  let ms = b.mouvements.filter(m => ids.has(m.line_id)); if (b.filtreMvt) ms = ms.filter(m => m.type === b.filtreMvt);
+  ms.sort((a, c) => c.on_date.localeCompare(a.on_date) || c.created_at.localeCompare(a.created_at));
+  corps.innerHTML = `<div class="filtres">${[['', 'Tous'], ...Object.entries(TYPES_MVT).map(([k, [l]]) => [k, l + 's'])].map(([k, l]) => `<button class="${(b.filtreMvt || '') === k ? 'on' : ''}" data-fm="${k}">${l}</button>`).join('')}<span class="muted sm" style="align-self:center">${ms.length} mouvement${ms.length > 1 ? 's' : ''} · ${fmtM(somme(ms, m => m.amount))}</span></div>
+    <div class="carte">${ms.length ? ms.map(ligneMouvement).join('') : '<div class="vide">Aucun mouvement.</div>'}</div>`;
+  $$('[data-fm]', corps).forEach(x => x.addEventListener('click', () => { b.filtreMvt = x.dataset.fm; rendreBudget(); }));
+}
+async function rendreJournal(corps) {
+  corps.innerHTML = '<div class="vide">Chargement du journal…</div>';
+  const { data, error } = await state.client.from('kp_budget_log').select('*').eq('project_id', state.budget.projet).order('at', { ascending: false }).limit(300);
+  if (error) { corps.innerHTML = '<div class="vide">Journal indisponible.</div>'; return; }
+  const lib = e => { const d = e.detail || {}; const a = { insert: 'a créé', update: 'a modifié', delete: 'a supprimé' }[e.action] || e.action;
+    if (d.table === 'ligne') { let s = `${a} la ligne « ${esc(d.label || '')} »`; if (e.action === 'update' && d.avant && d.apres && Number(d.avant.planned) !== Number(d.apres.planned)) s += ` : prévu ${fmtM(d.avant.planned)} → ${fmtM(d.apres.planned)}`; else if (e.action === 'insert' && d.apres) s += ` (prévu ${fmtM(d.apres.planned)})`; return s; }
+    const [t] = TYPES_MVT[d.type] || [d.type]; return `${a} un ${(t || '').toLowerCase()} de ${fmtM(d.amount)}${d.label ? ' « ' + esc(d.label) + ' »' : ''}${d.on_date ? ' au ' + dateFr(d.on_date) : ''}`; };
+  corps.innerHTML = `<div class="carte">${data.length ? data.map(e => `<div class="ligne"><div><b class="sm">${esc(membre(e.who).name)}</b> <span class="sm">${lib(e)}</span><small>${dateFr(e.at)} ${hhmm(new Date(e.at))}</small></div></div>`).join('') : '<div class="vide">Aucune modification enregistrée.</div>'}</div>`;
+}
+
+/* ---- Formulaires ---- */
+const optionsCat = (kind, sel) => [...new Set([...(kind === 'recette' ? CAT_REC : CAT_DEP), ...state.budget.lignes.filter(l => l.kind === kind).map(l => l.category), ...(sel ? [sel] : [])])].map(c => `<option ${c === sel ? 'selected' : ''}>${esc(c)}</option>`).join('');
+const champMontant = (id, val, lib = 'Montant') => `<label class="champ"><span>${lib} (${symDevise()})</span><input id="${id}" inputmode="decimal" value="${val !== undefined && val !== null ? Math.round(enDevise(val)).toLocaleString('fr-FR') : ''}" placeholder="0"></label>`;
+function formLigne(pre = {}, id) {
+  const l = id ? state.budget.lignes.find(x => x.id === id) : null; const kind = l ? l.kind : (pre.kind || 'dépense');
+  modal(`<h3>${l ? 'Modifier la ligne' : 'Nouvelle ligne de ' + kind}</h3>
+    <div class="ligne2"><label class="champ"><span>Nature</span><select id="l-kind" ${l ? 'disabled' : ''}><option value="dépense" ${kind === 'dépense' ? 'selected' : ''}>Dépense</option><option value="recette" ${kind === 'recette' ? 'selected' : ''}>Recette</option></select></label>
+      <label class="champ"><span>Poste</span><select id="l-cat">${optionsCat(kind, l?.category)}</select></label></div>
+    <label class="champ"><span>Libellé</span><input id="l-label" value="${esc(l?.label || '')}" placeholder="Ex. Acquisition du terrain, lot 12"></label>
+    <div class="ligne2">${champMontant('l-prevu', l?.planned, 'Montant prévu')}<label class="champ"><span>Phase</span><select id="l-phase">${optionsPhases(state.budget.projet, l?.phase_id)}</select></label></div>
+    <div class="ligne2"><label class="champ"><span>Fournisseur / contrepartie</span><input id="l-four" value="${esc(l?.supplier || '')}"></label><label class="champ"><span>Note</span><input id="l-note" value="${esc(l?.note || '')}"></label></div>
+    <div class="actions"><button class="btn prim" id="l-ok">${l ? 'Enregistrer' : 'Créer'}</button>${l ? '<button class="btn" id="l-suppr">Supprimer</button>' : ''}<button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#l-kind', mo).addEventListener('change', e => { $('#l-cat', mo).innerHTML = optionsCat(e.target.value); });
+    $('#l-ok', mo).addEventListener('click', async () => {
+      const label = $('#l-label').value.trim(); const planned = parseMontant($('#l-prevu').value || '0');
+      if (!label) { toast('Donnez un libellé'); return; } if (isNaN(planned)) { toast('Montant invalide'); return; }
+      const row = { kind: $('#l-kind').value, category: $('#l-cat').value, label, planned, phase_id: $('#l-phase').value || null, supplier: $('#l-four').value.trim() || null, note: $('#l-note').value.trim() || null };
+      if (l) { const { error } = await state.client.from('kp_budget_lines').update(row).eq('id', l.id); if (error) { toast('Modification impossible : ' + esc(error.message)); return; } Object.assign(l, row); }
+      else { const { data, error } = await state.client.from('kp_budget_lines').insert({ ...row, project_id: state.budget.projet, created_by: state.moi.user_id, sort: Date.now() / 1000 }).select().single(); if (error) { toast('Création impossible : ' + esc(error.message)); return; } if (!state.budget.lignes.find(x => x.id === data.id)) state.budget.lignes.push(data); }
+      fermerModal(); toast('Enregistré'); rendreBudget();
+    });
+    $('#l-suppr', mo)?.addEventListener('click', async () => {
+      if (!confirm('Supprimer cette ligne et ses mouvements ?')) return;
+      const { error } = await state.client.from('kp_budget_lines').delete().eq('id', l.id); if (error) { toast('Suppression impossible'); return; }
+      state.budget.lignes = state.budget.lignes.filter(x => x.id !== l.id); state.budget.mouvements = state.budget.mouvements.filter(m => m.line_id !== l.id); fermerModal(); rendreBudget();
+    });
+  });
+}
+function formMouvement(pre = {}) {
+  const ls = lignesProjet(); if (!ls.length) { toast('Créez d’abord une ligne de budget'); return; }
+  const lid = pre.line_id || ls[0].id; const l0 = ls.find(x => x.id === lid);
+  const optLignes = sel => ['dépense', 'recette'].map(k => { const x = ls.filter(l => l.kind === k); return x.length ? `<optgroup label="${k === 'recette' ? 'Recettes' : 'Dépenses'}">${x.map(l => `<option value="${l.id}" ${l.id === sel ? 'selected' : ''}>${esc(l.category)} · ${esc(l.label)}</option>`).join('')}</optgroup>` : ''; }).join('');
+  const optTypes = l => (l.kind === 'recette' ? ['engagement', 'encaissement'] : ['engagement', 'paiement']).map(t => `<option value="${t}" ${(pre.type || (l.kind === 'recette' ? 'encaissement' : 'paiement')) === t ? 'selected' : ''}>${TYPES_MVT[t][0]}${t === 'engagement' ? (l.kind === 'recette' ? ' (réservation, contrat signé)' : ' (contrat, devis signé, commande)') : ''}</option>`).join('');
+  modal(`<h3>Nouveau mouvement</h3>
+    <label class="champ"><span>Ligne de budget</span><select id="m-ligne">${optLignes(lid)}</select></label>
+    <div class="ligne2"><label class="champ"><span>Type</span><select id="m-type">${optTypes(l0)}</select></label>${champMontant('m-montant', pre.amount)}</div>
+    <div class="ligne2"><label class="champ"><span>Date</span><input id="m-date" type="date" value="${pre.on_date || auj()}"></label><label class="champ"><span>Référence (facture, contrat…)</span><input id="m-ref" placeholder="Ex. Facture 2026-014"></label></div>
+    <label class="champ"><span>Libellé</span><input id="m-label" placeholder="Ex. Acompte 30 % étude de sol"></label>
+    <div class="actions"><button class="btn prim" id="m-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#m-ligne', mo).addEventListener('change', e => { const l = ls.find(x => x.id === e.target.value); $('#m-type', mo).innerHTML = optTypes(l); });
+    $('#m-montant', mo).focus();
+    $('#m-ok', mo).addEventListener('click', async () => {
+      const amount = parseMontant($('#m-montant').value); if (isNaN(amount) || !amount) { toast('Indiquez un montant'); return; }
+      const { data, error } = await state.client.from('kp_budget_moves').insert({ line_id: $('#m-ligne').value, type: $('#m-type').value, amount, on_date: $('#m-date').value || auj(), label: $('#m-label').value.trim() || null, ref: $('#m-ref').value.trim() || null, created_by: state.moi.user_id }).select().single();
+      if (error) { toast('Enregistrement impossible : ' + esc(error.message)); return; }
+      if (!state.budget.mouvements.find(m => m.id === data.id)) state.budget.mouvements.push(data);
+      fermerModal(); toast('Mouvement enregistré'); if (state.budget.ligne) ficheLigne(state.budget.ligne); else rendreBudget();
+    });
+  });
+}
+async function supprimerMouvement(id) {
+  if (!confirm('Supprimer ce mouvement ?')) return;
+  const { error } = await state.client.from('kp_budget_moves').delete().eq('id', id); if (error) { toast('Suppression impossible'); return; }
+  state.budget.mouvements = state.budget.mouvements.filter(m => m.id !== id); if (state.budget.ligne) ficheLigne(state.budget.ligne); else rendreBudget();
+}
+function ficheLigne(id) {
+  const l = state.budget.lignes.find(x => x.id === id); if (!l) return; const x = totauxLigne(l); const ms = mvtsDe(id).sort((a, b) => b.on_date.localeCompare(a.on_date));
+  state.budget.ligne = id;
+  const mo = modal(`<h3>${esc(l.label)} <small style="font-family:var(--sans);font-size:.7em;color:var(--pierre)">${esc(l.category)} · ${l.kind}</small></h3>
+    <div class="kpis" style="grid-template-columns:repeat(3,1fr)"><div class="kpi"><b>${abr(x.prevu)}</b><small>Prévu</small></div><div class="kpi ${x.engage > x.prevu ? 'rouge' : ''}"><b>${abr(x.engage)}</b><small>Engagé · ${pct(x.engage, x.prevu)} %</small></div><div class="kpi vert"><b>${abr(x.realise)}</b><small>${l.kind === 'recette' ? 'Encaissé' : 'Payé'} · ${pct(x.realise, x.prevu)} %</small></div></div>
+    ${l.supplier || l.note || l.phase_id ? `<p class="sm muted" style="margin:-.4em 0 .8em">${[l.supplier, l.phase_id && phaseDe(l.phase_id) ? 'Phase ' + phaseDe(l.phase_id).num + ' · ' + phaseDe(l.phase_id).title : null, l.note].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
+    <div class="actions" style="margin-bottom:.8em"><button class="btn sm prim" id="f-mvt">＋ Mouvement</button><button class="btn sm" id="f-edit">Modifier la ligne</button></div>
+    <h4 style="font-family:var(--sans);font-size:.8em;text-transform:uppercase;letter-spacing:.06em;color:var(--pierre);margin-bottom:.3em">Mouvements <small>${ms.length}</small></h4>
+    <div>${ms.length ? ms.map(ligneMouvement).join('') : '<div class="vide">Aucun mouvement sur cette ligne.</div>'}</div>
+    <div class="actions" style="margin-top:.8em"><button class="btn prim" id="f-fermer">Fermer</button></div>`, m => {
+    $('.boite', m).classList.add('large');
+    $('#f-mvt', m).addEventListener('click', () => formMouvement({ line_id: id }));
+    $('#f-edit', m).addEventListener('click', () => { state.budget.ligne = null; formLigne({}, id); });
+    $('#f-fermer', m).addEventListener('click', () => { state.budget.ligne = null; fermerModal(); rendreBudget(); });
+    $$('[data-mvt-suppr]', m).forEach(b => b.addEventListener('click', () => supprimerMouvement(b.dataset.mvtSuppr)));
+  });
+  mo.addEventListener('click', e => { if (e.target === mo) { state.budget.ligne = null; rendreBudget(); } });
+}
+function formTaux() {
+  const p = projetBudget();
+  modal(`<h3>Taux de conversion · ${esc(p.name)}</h3><label class="champ"><span>GNF pour 1 €</span><input id="t-taux" inputmode="decimal" value="${taux()}"></label><p class="sm muted" style="margin-bottom:.8em">Sert uniquement à l’affichage en euros ; les montants restent enregistrés en GNF.</p><div class="actions"><button class="btn prim" id="t-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#t-ok', mo).addEventListener('click', async () => {
+      const v = Number(String($('#t-taux').value).replace(/\s/g, '').replace(',', '.')); if (!v || v <= 0) { toast('Taux invalide'); return; }
+      const { error } = await state.client.from('kp_projects').update({ gnf_per_eur: v }).eq('id', p.id); if (error) { toast('Enregistrement impossible'); return; }
+      p.gnf_per_eur = v; fermerModal(); vueBudget();
+    });
+  });
+}
+async function creerStructureType(kind) {
+  const cats = kind === 'recette' ? CAT_REC : CAT_DEP;
+  if (!confirm(`Créer ${cats.length} lignes de ${kind} (montants à zéro, à compléter) ?`)) return;
+  const rows = cats.map((c, i) => ({ project_id: state.budget.projet, kind, category: c, label: c, planned: 0, created_by: state.moi.user_id, sort: i }));
+  const { data, error } = await state.client.from('kp_budget_lines').insert(rows).select();
+  if (error) { toast('Création impossible : ' + esc(error.message)); return; }
+  data.forEach(d => { if (!state.budget.lignes.find(x => x.id === d.id)) state.budget.lignes.push(d); }); toast('Structure créée'); rendreBudget();
+}
+function exporterBudgetCSV() {
+  const ls = lignesProjet(); const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const col = ['Nature', 'Poste', 'Libellé', 'Fournisseur', 'Phase', 'Prévu (GNF)', 'Engagé (GNF)', 'Réalisé (GNF)', 'Reste (GNF)', 'Note'];
+  const rows = ls.map(l => { const x = totauxLigne(l); const ph = l.phase_id && phaseDe(l.phase_id); return [l.kind, l.category, l.label, l.supplier || '', ph ? `${ph.num}. ${ph.title}` : '', x.prevu, x.engage, x.realise, x.prevu - x.engage, l.note || ''].map(q).join(';'); });
+  const ms = state.budget.mouvements.filter(m => ls.find(l => l.id === m.line_id)).sort((a, b) => a.on_date.localeCompare(b.on_date));
+  const col2 = ['Date', 'Type', 'Ligne', 'Libellé', 'Référence', 'Montant (GNF)', 'Saisi par'];
+  const rows2 = ms.map(m => { const l = ls.find(x => x.id === m.line_id); return [m.on_date, m.type, l ? l.label : '', m.label || '', m.ref || '', m.amount, membre(m.created_by).name].map(q).join(';'); });
+  const blob = new Blob(['﻿' + [col.map(q).join(';'), ...rows, '', col2.map(q).join(';'), ...rows2].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `kaporo-budget-${state.budget.projet}-${auj()}.csv`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ============================================================
    Navigation, chargement des données, temps réel, démarrage
    ============================================================ */
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
-  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
-  ['dev', '🛠️', 'Développement', vueDev, 'admin'],
+  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['redaction', '📝', 'Rédaction', vueRedaction], ['budget', '💰', 'Budget', vueBudget],
+  ['equipe', '👥', 'Équipe', vueEquipe], ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
+const TABS_MOBILE = ['discussions', 'taches', 'redaction', 'budget'];
 const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
@@ -1669,13 +2185,17 @@ function renderNav() {
   const btn = (k, court) => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${court && k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
   const vs = vuesVisibles();
   $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(k => btn(k, false)).join('')}`;
-  $('#tabs').innerHTML = vs.map(k => btn(k, true)).join('');
-  $('#tabs').style.gridTemplateColumns = `repeat(${vs.length},1fr)`;
-  $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+  const princ = vs.filter(k => TABS_MOBILE.includes(k[0])); const autres = vs.filter(k => !TABS_MOBILE.includes(k[0]));
+  const badgeAutres = autres.some(k => badge(k[0])) ? '<span class="bd">•</span>' : '';
+  $('#tabs').innerHTML = princ.map(k => btn(k, true)).join('') + `<button class="${autres.some(k => k[0] === state.vue) ? 'on' : ''}" id="tab-plus"><span class="ic">⋯</span><span>Plus</span>${badgeAutres}</button>`;
+  $('#tabs').style.gridTemplateColumns = `repeat(${princ.length + 1},1fr)`;
+  $$('#nav button,#tabs button[data-v]').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+  $('#tab-plus').addEventListener('click', () => modal(`<h3>Autres modules</h3><div class="plus-liste">${autres.map(k => `<button class="btn ${state.vue === k[0] ? 'prim' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span> ${k[2]}${badge(k[0])}</button>`).join('')}</div>`, mo => { $$('[data-v]', mo).forEach(b => b.addEventListener('click', () => go(b.dataset.v))); }));
   const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }
   document.title = (nl ? `(${nl}) ` : '') + 'Kaporo';
 }
 function go(v) {
+  if (state.redac?.session) fermerDoc();
   state.vue = v; localStorage.setItem('kp.vue', v); fermerModal();
   const def = VUES.find(x => x[0] === v) || VUES[0];
   renderNav(); def[3]();
@@ -1684,7 +2204,7 @@ function setConn(ok, lib) { const c = $('#conn'); c.className = 'pill ' + (ok ? 
 
 async function chargerTout() {
   const c = state.client;
-  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm] = await Promise.all([
+  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm] = await Promise.all([
     c.from('kp_members').select('*').eq('user_id', state.session.user.id).maybeSingle(),
     c.from('kp_members').select('*').order('created_at'),
     c.from('kp_projects').select('*').order('sort'),
@@ -1696,8 +2216,12 @@ async function chargerTout() {
     c.from('kp_phases').select('*').order('num'),
     c.from('kp_tasks').select('*').order('created_at'),
     c.from('kp_channel_members').select('*'),
+    c.from('kp_docs').select('id,project_id,title,category,created_by,created_at,updated_by,updated_at,archived').order('updated_at', { ascending: false }),
+    c.from('kp_budget_lines').select('*').order('sort'),
+    c.from('kp_budget_moves').select('*').order('on_date'),
   ]);
-  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm].find(r => r.error); if (err) throw err.error;
+  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm].find(r => r.error); if (err) throw err.error;
+  state.docs = dx.data; state.budget.lignes = bl.data; state.budget.mouvements = bm.data;
   if (!me.data) throw new Error('PROFIL_ABSENT');
   state.moi = me.data; state.membres = mb.data; state.projets = pr.data; state.canaux = ch.data; state.messages = ms.data;
   state.participants = grouperParticipants(cm.data);
@@ -1729,7 +2253,18 @@ function brancherTempsReel() {
     const row = payload.new?.id ? payload.new : null;
     if (payload.eventType === 'DELETE') { state[cle] = state[cle].filter(x => x.id !== payload.old.id); }
     else if (row) { const i = state[cle].findIndex(x => x.id === row.id); if (i >= 0) state[cle][i] = row; else state[cle].push(row); if (tri) state[cle].sort(tri); }
-    if (!document.activeElement?.matches('input,select,textarea') && !$('#modal') && state.vue !== 'discussions') { if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else go(state.vue); } else renderNav();
+    rafraichirVue();
+  };
+  const rafraichirVue = () => {
+    if (state.vue === 'redaction' && state.redac.session) return;
+    if (document.activeElement?.matches('input,select,textarea') || $('#modal') || state.vue === 'discussions') { renderNav(); return; }
+    if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else if (state.vue === 'budget' && $('#budget-corps')) rendreBudget(); else go(state.vue);
+  };
+  const majBudget = cle => payload => {
+    const arr = state.budget[cle]; const row = payload.new?.id ? payload.new : null;
+    if (payload.eventType === 'DELETE') { state.budget[cle] = arr.filter(x => x.id !== payload.old.id); if (cle === 'lignes') state.budget.mouvements = state.budget.mouvements.filter(m => m.line_id !== payload.old.id); }
+    else if (row) { const i = arr.findIndex(x => x.id === row.id); if (i >= 0) arr[i] = row; else arr.push(row); }
+    if (state.vue === 'budget' && !$('#modal')) rendreBudget(); else if (state.vue === 'budget' && state.budget.ligne) ficheLigne(state.budget.ligne);
   };
   c.channel('kaporo-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_messages' }, p => { if (p.new?.id) messageRecu(p.new); })
@@ -1738,6 +2273,10 @@ function brancherTempsReel() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_phases' }, maj('kp_phases', 'phases', (a, b) => a.num - b.num))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_docs' }, p => { if (p.eventType === 'DELETE') { state.docs = state.docs.filter(d => d.id !== p.old.id); if (state.redac.session?.id === p.old.id) { toast('Ce document a été supprimé'); go('redaction'); } } else if (p.new?.id) docModifieAilleurs(p.new); if (state.vue === 'redaction' && !state.redac.session && !$('#modal')) vueRedaction(); })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'kp_doc_versions' }, p => { if (p.new?.id) versionRecue(p.new); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_lines' }, majBudget('lignes'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_moves' }, majBudget('mouvements'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_dev_requests' }, async p => {
       if (!state.moi?.is_admin) return; await chargerDev();
       if (p.new && ['question', 'livrée', 'erreur'].includes(p.new.status) && p.old?.status !== p.new.status) toast(`<b>Développement · ${esc(p.new.title)}</b><br>${p.new.status === 'livrée' ? 'Livrée : rechargez l’application pour voir le résultat.' : p.new.status === 'question' ? 'L’agent a une question.' : 'Erreur pendant la réalisation.'}`, 6000);

@@ -3,9 +3,10 @@
    ============================================================ */
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
-  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
-  ['dev', '🛠️', 'Développement', vueDev, 'admin'],
+  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['redaction', '📝', 'Rédaction', vueRedaction], ['budget', '💰', 'Budget', vueBudget],
+  ['equipe', '👥', 'Équipe', vueEquipe], ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
+const TABS_MOBILE = ['discussions', 'taches', 'redaction', 'budget'];
 const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
@@ -15,13 +16,17 @@ function renderNav() {
   const btn = (k, court) => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${court && k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
   const vs = vuesVisibles();
   $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${vs.map(k => btn(k, false)).join('')}`;
-  $('#tabs').innerHTML = vs.map(k => btn(k, true)).join('');
-  $('#tabs').style.gridTemplateColumns = `repeat(${vs.length},1fr)`;
-  $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+  const princ = vs.filter(k => TABS_MOBILE.includes(k[0])); const autres = vs.filter(k => !TABS_MOBILE.includes(k[0]));
+  const badgeAutres = autres.some(k => badge(k[0])) ? '<span class="bd">•</span>' : '';
+  $('#tabs').innerHTML = princ.map(k => btn(k, true)).join('') + `<button class="${autres.some(k => k[0] === state.vue) ? 'on' : ''}" id="tab-plus"><span class="ic">⋯</span><span>Plus</span>${badgeAutres}</button>`;
+  $('#tabs').style.gridTemplateColumns = `repeat(${princ.length + 1},1fr)`;
+  $$('#nav button,#tabs button[data-v]').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+  $('#tab-plus').addEventListener('click', () => modal(`<h3>Autres modules</h3><div class="plus-liste">${autres.map(k => `<button class="btn ${state.vue === k[0] ? 'prim' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span> ${k[2]}${badge(k[0])}</button>`).join('')}</div>`, mo => { $$('[data-v]', mo).forEach(b => b.addEventListener('click', () => go(b.dataset.v))); }));
   const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }
   document.title = (nl ? `(${nl}) ` : '') + 'Kaporo';
 }
 function go(v) {
+  if (state.redac?.session) fermerDoc();
   state.vue = v; localStorage.setItem('kp.vue', v); fermerModal();
   const def = VUES.find(x => x[0] === v) || VUES[0];
   renderNav(); def[3]();
@@ -30,7 +35,7 @@ function setConn(ok, lib) { const c = $('#conn'); c.className = 'pill ' + (ok ? 
 
 async function chargerTout() {
   const c = state.client;
-  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm] = await Promise.all([
+  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm] = await Promise.all([
     c.from('kp_members').select('*').eq('user_id', state.session.user.id).maybeSingle(),
     c.from('kp_members').select('*').order('created_at'),
     c.from('kp_projects').select('*').order('sort'),
@@ -42,8 +47,12 @@ async function chargerTout() {
     c.from('kp_phases').select('*').order('num'),
     c.from('kp_tasks').select('*').order('created_at'),
     c.from('kp_channel_members').select('*'),
+    c.from('kp_docs').select('id,project_id,title,category,created_by,created_at,updated_by,updated_at,archived').order('updated_at', { ascending: false }),
+    c.from('kp_budget_lines').select('*').order('sort'),
+    c.from('kp_budget_moves').select('*').order('on_date'),
   ]);
-  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm].find(r => r.error); if (err) throw err.error;
+  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm].find(r => r.error); if (err) throw err.error;
+  state.docs = dx.data; state.budget.lignes = bl.data; state.budget.mouvements = bm.data;
   if (!me.data) throw new Error('PROFIL_ABSENT');
   state.moi = me.data; state.membres = mb.data; state.projets = pr.data; state.canaux = ch.data; state.messages = ms.data;
   state.participants = grouperParticipants(cm.data);
@@ -75,7 +84,18 @@ function brancherTempsReel() {
     const row = payload.new?.id ? payload.new : null;
     if (payload.eventType === 'DELETE') { state[cle] = state[cle].filter(x => x.id !== payload.old.id); }
     else if (row) { const i = state[cle].findIndex(x => x.id === row.id); if (i >= 0) state[cle][i] = row; else state[cle].push(row); if (tri) state[cle].sort(tri); }
-    if (!document.activeElement?.matches('input,select,textarea') && !$('#modal') && state.vue !== 'discussions') { if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else go(state.vue); } else renderNav();
+    rafraichirVue();
+  };
+  const rafraichirVue = () => {
+    if (state.vue === 'redaction' && state.redac.session) return;
+    if (document.activeElement?.matches('input,select,textarea') || $('#modal') || state.vue === 'discussions') { renderNav(); return; }
+    if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else if (state.vue === 'budget' && $('#budget-corps')) rendreBudget(); else go(state.vue);
+  };
+  const majBudget = cle => payload => {
+    const arr = state.budget[cle]; const row = payload.new?.id ? payload.new : null;
+    if (payload.eventType === 'DELETE') { state.budget[cle] = arr.filter(x => x.id !== payload.old.id); if (cle === 'lignes') state.budget.mouvements = state.budget.mouvements.filter(m => m.line_id !== payload.old.id); }
+    else if (row) { const i = arr.findIndex(x => x.id === row.id); if (i >= 0) arr[i] = row; else arr.push(row); }
+    if (state.vue === 'budget' && !$('#modal')) rendreBudget(); else if (state.vue === 'budget' && state.budget.ligne) ficheLigne(state.budget.ligne);
   };
   c.channel('kaporo-live')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_messages' }, p => { if (p.new?.id) messageRecu(p.new); })
@@ -84,6 +104,10 @@ function brancherTempsReel() {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_phases' }, maj('kp_phases', 'phases', (a, b) => a.num - b.num))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_docs' }, p => { if (p.eventType === 'DELETE') { state.docs = state.docs.filter(d => d.id !== p.old.id); if (state.redac.session?.id === p.old.id) { toast('Ce document a été supprimé'); go('redaction'); } } else if (p.new?.id) docModifieAilleurs(p.new); if (state.vue === 'redaction' && !state.redac.session && !$('#modal')) vueRedaction(); })
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'kp_doc_versions' }, p => { if (p.new?.id) versionRecue(p.new); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_lines' }, majBudget('lignes'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_moves' }, majBudget('mouvements'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_dev_requests' }, async p => {
       if (!state.moi?.is_admin) return; await chargerDev();
       if (p.new && ['question', 'livrée', 'erreur'].includes(p.new.status) && p.old?.status !== p.new.status) toast(`<b>Développement · ${esc(p.new.title)}</b><br>${p.new.status === 'livrée' ? 'Livrée : rechargez l’application pour voir le résultat.' : p.new.status === 'question' ? 'L’agent a une question.' : 'Erreur pendant la réalisation.'}`, 6000);
