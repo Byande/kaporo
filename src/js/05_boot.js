@@ -3,10 +3,10 @@
    ============================================================ */
 const VUES = [
   ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
-  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['redaction', '📝', 'Rédaction', vueRedaction], ['budget', '💰', 'Budget', vueBudget],
+  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '📊', 'Suivi', vueTaches], ['reunions', '🗓️', 'Réunions', vueReunions], ['redaction', '📝', 'Rédaction', vueRedaction], ['budget', '💰', 'Budget', vueBudget],
   ['equipe', '👥', 'Équipe', vueEquipe], ['dev', '🛠️', 'Développement', vueDev, 'admin'],
 ];
-const TABS_MOBILE = ['discussions', 'taches', 'redaction', 'budget'];
+const TABS_MOBILE = ['discussions', 'taches', 'reunions', 'redaction'];
 const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_admin));
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
@@ -27,6 +27,7 @@ function renderNav() {
 }
 function go(v) {
   if (state.redac?.session) fermerDoc();
+  if (state.reunion?.ouverte) fermerReunion();
   state.vue = v; localStorage.setItem('kp.vue', v); fermerModal();
   const def = VUES.find(x => x[0] === v) || VUES[0];
   renderNav(); def[3]();
@@ -35,7 +36,7 @@ function setConn(ok, lib) { const c = $('#conn'); c.className = 'pill ' + (ok ? 
 
 async function chargerTout() {
   const c = state.client;
-  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm] = await Promise.all([
+  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm, mt] = await Promise.all([
     c.from('kp_members').select('*').eq('user_id', state.session.user.id).maybeSingle(),
     c.from('kp_members').select('*').order('created_at'),
     c.from('kp_projects').select('*').order('sort'),
@@ -50,9 +51,10 @@ async function chargerTout() {
     c.from('kp_docs').select('id,project_id,title,category,created_by,created_at,updated_by,updated_at,archived').order('updated_at', { ascending: false }),
     c.from('kp_budget_lines').select('*').order('sort'),
     c.from('kp_budget_moves').select('*').order('on_date'),
+    c.from('kp_meetings').select('*').order('starts_at'),
   ]);
-  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm].find(r => r.error); if (err) throw err.error;
-  state.docs = dx.data; state.budget.lignes = bl.data; state.budget.mouvements = bm.data;
+  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta, cm, dx, bl, bm, mt].find(r => r.error); if (err) throw err.error;
+  state.docs = dx.data; state.budget.lignes = bl.data; state.budget.mouvements = bm.data; state.reunions = mt.data;
   if (!me.data) throw new Error('PROFIL_ABSENT');
   state.moi = me.data; state.membres = mb.data; state.projets = pr.data; state.canaux = ch.data; state.messages = ms.data;
   state.participants = grouperParticipants(cm.data);
@@ -88,6 +90,7 @@ function brancherTempsReel() {
   };
   const rafraichirVue = () => {
     if (state.vue === 'redaction' && state.redac.session) return;
+    if (state.vue === 'reunions' && state.reunion.ouverte) { renderNav(); return; }
     if (document.activeElement?.matches('input,select,textarea') || $('#modal') || state.vue === 'discussions') { renderNav(); return; }
     if (state.vue === 'taches' && $('#suivi-corps')) rendreSuivi(); else if (state.vue === 'budget' && $('#budget-corps')) rendreBudget(); else go(state.vue);
   };
@@ -108,6 +111,8 @@ function brancherTempsReel() {
     .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'kp_doc_versions' }, p => { if (p.new?.id) versionRecue(p.new); })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_lines' }, majBudget('lignes'))
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_budget_moves' }, majBudget('mouvements'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_meetings' }, reunionModifiee)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_meeting_notes' }, noteRecue)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_dev_requests' }, async p => {
       if (!state.moi?.is_admin) return; await chargerDev();
       if (p.new && ['question', 'livrée', 'erreur'].includes(p.new.status) && p.old?.status !== p.new.status) toast(`<b>Développement · ${esc(p.new.title)}</b><br>${p.new.status === 'livrée' ? 'Livrée : rechargez l’application pour voir le résultat.' : p.new.status === 'question' ? 'L’agent a une question.' : 'Erreur pendant la réalisation.'}`, 6000);

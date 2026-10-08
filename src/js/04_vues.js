@@ -132,12 +132,14 @@ async function vueEquipe() {
   main.innerHTML = `<div class="vue"><h1>Équipe</h1><p class="sous">Les membres de l’espace. Seules les adresses invitées peuvent se connecter.</p>
     <div class="g g2">
       <div class="carte"><h3>Membres <small>${state.membres.length}</small></h3>
-        ${state.membres.map(m => `<div class="ligne"><div style="display:flex;gap:.7em;align-items:center"><span class="avatar" style="background:${m.color}">${initiales(m.name)}</span><div><b>${esc(m.name)}</b>${m.is_admin ? ' <span class="etat bleu">admin</span>' : ''}<small>${esc(m.role)} · ${esc(m.email)}</small></div></div></div>`).join('')}
-        ${enAttente.length ? `<p class="sm muted" style="margin:1em 0 .3em">Invités, pas encore connectés</p>${enAttente.map(i => `<div class="ligne"><div><b>${esc(i.name)}</b><small>${esc(i.role)} · ${esc(i.email)}</small></div><button class="btn sm" data-retirer="${esc(i.email)}">✕</button></div>`).join('')}` : ''}
+        ${state.membres.map(m => `<div class="ligne"><div style="display:flex;gap:.7em;align-items:flex-start;min-width:0"><span class="avatar" style="background:${m.color}">${initiales(m.name)}</span><div style="min-width:0"><b>${esc(m.name)}</b>${m.is_admin ? ' <span class="etat bleu">admin</span>' : ''}<small>${esc(m.role)} · ${esc(m.email)}</small>${m.responsibilities ? `<small style="white-space:pre-wrap;color:var(--texte);margin-top:.15em">${esc(m.responsibilities)}</small>` : ''}</div></div>${state.moi.is_admin || m.user_id === state.moi.user_id ? `<button class="btn sm" data-membre="${m.user_id}" title="Rôle et responsabilités">✎</button>` : ''}</div>`).join('')}
+        ${enAttente.length ? `<p class="sm muted" style="margin:1em 0 .3em">Invités, pas encore connectés</p>${enAttente.map(i => `<div class="ligne"><div style="min-width:0"><b>${esc(i.name)}</b><small>${esc(i.role)} · ${esc(i.email)}</small>${i.responsibilities ? `<small style="white-space:pre-wrap;color:var(--texte)">${esc(i.responsibilities)}</small>` : ''}</div><span class="actions"><button class="btn sm" data-invite="${esc(i.email)}" title="Modifier">✎</button><button class="btn sm" data-retirer="${esc(i.email)}">✕</button></span></div>`).join('')}` : ''}
         ${state.moi.is_admin ? `<h3 style="margin-top:1.2em">Inviter une personne</h3>
           <label class="champ"><span>Nom</span><input id="i-nom" placeholder="Prénom Nom"></label>
           <label class="champ"><span>E-mail</span><input id="i-email" type="email" placeholder="prenom@exemple.com"></label>
-          <label class="champ"><span>Rôle</span><select id="i-role"><option value="promoteur">Promoteur</option><option value="architecte">Architecte</option><option value="pilotage">Pilotage de programme</option><option value="relations institutionnelles">Relations institutionnelles</option><option value="bureau d'études">Bureau d’études</option><option value="banque">Banque (lecture)</option><option value="admin">Administrateur</option></select></label>
+          <label class="champ"><span>Rôle (libre : choisissez ou écrivez)</span><input id="i-role" list="roles-sugg" placeholder="Ex. Promoteur, Architecte, Notaire, Géomètre…">${datalistRoles()}</label>
+          <label class="champ"><span>Responsabilités (facultatif)</span><textarea id="i-resp" rows="2" placeholder="Ex. Sécurisation du foncier, relations avec la mairie, suivi des paiements"></textarea></label>
+          <p class="sm muted" style="margin:-.4em 0 .6em">Le rôle « admin » donne les droits d’administration.</p>
           <button class="btn prim" id="i-ok">Inviter</button>
           <p class="sm muted" style="margin-top:.6em">La personne reçoit ensuite son lien de connexion en saisissant son adresse sur l’écran d’accueil. Transmettez-lui l’adresse de l’application.</p>` : ''}
       </div>
@@ -171,7 +173,8 @@ async function vueEquipe() {
   $('#i-ok')?.addEventListener('click', async () => {
     const email = $('#i-email').value.trim().toLowerCase(); const name = $('#i-nom').value.trim();
     if (!email || !name) { toast('Nom et e-mail requis'); return; }
-    const { error } = await state.client.from('kp_allowed').insert({ email, name, role: $('#i-role').value, invited_by: state.moi.user_id });
+    const role = $('#i-role').value.trim() || 'membre';
+    const { error } = await state.client.from('kp_allowed').insert({ email, name, role, responsibilities: $('#i-resp').value.trim() || null, invited_by: state.moi.user_id });
     if (error) { toast(/duplicate/i.test(error.message) ? 'Cette adresse est déjà invitée' : 'Invitation impossible'); return; }
     toast(`<b>${esc(name)} invité(e).</b> Transmettez-lui l’adresse de l’application.`); vueEquipe();
   });
@@ -179,6 +182,29 @@ async function vueEquipe() {
     if (!confirm('Retirer cette invitation ?')) return;
     await state.client.from('kp_allowed').delete().eq('email', b.dataset.retirer); vueEquipe();
   }));
+  $$('[data-membre]').forEach(b => b.addEventListener('click', () => formRole(state.membres.find(m => m.user_id === b.dataset.membre), 'kp_members')));
+  $$('[data-invite]').forEach(b => b.addEventListener('click', () => formRole(invites.find(i => i.email === b.dataset.invite), 'kp_allowed')));
+}
+const ROLES_SUGG = ['Promoteur', 'Architecte', 'Pilotage de programme', 'Relations institutionnelles', 'Bureau d’études', 'Notaire', 'Géomètre', 'Banque (lecture)', 'Commercialisation', 'Entreprise de travaux', 'Contrôle technique', 'Juriste', 'Comptable', 'admin'];
+const datalistRoles = () => `<datalist id="roles-sugg">${[...new Set([...ROLES_SUGG, ...state.membres.map(m => m.role)])].map(r => `<option value="${esc(r)}">`).join('')}</datalist>`;
+/* Rôle et responsabilités d'un membre (admin) ou de soi-même ; d'une invitation en attente (admin) */
+function formRole(m, table) {
+  if (!m) return; const admin = state.moi.is_admin;
+  modal(`<h3>${esc(m.name)} <small style="font-family:var(--sans);font-size:.7em;color:var(--pierre)">${esc(m.email)}</small></h3>
+    ${admin ? `<label class="champ"><span>Nom affiché</span><input id="r-nom" value="${esc(m.name)}"></label>` : ''}
+    <label class="champ"><span>Rôle</span><input id="r-role" list="roles-sugg" value="${esc(m.role || '')}" ${admin ? '' : 'disabled'}>${datalistRoles()}</label>
+    <label class="champ"><span>Responsabilités</span><textarea id="r-resp" rows="4" placeholder="Une responsabilité par ligne">${esc(m.responsibilities || '')}</textarea></label>
+    ${!admin ? '<p class="sm muted" style="margin-bottom:.6em">Seul l’administrateur peut changer le rôle.</p>' : ''}
+    <div class="actions"><button class="btn prim" id="r-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#r-ok', mo).addEventListener('click', async () => {
+      const patch = { responsibilities: $('#r-resp').value.trim() || null };
+      if (admin) { patch.role = $('#r-role').value.trim() || 'membre'; const nom = $('#r-nom').value.trim(); if (nom) patch.name = nom; if (table === 'kp_members') patch.is_admin = patch.role === 'admin' || (m.is_admin && m.user_id === state.moi.user_id); }
+      const q = table === 'kp_members' ? state.client.from('kp_members').update(patch).eq('user_id', m.user_id) : state.client.from('kp_allowed').update(patch).eq('email', m.email);
+      const { error } = await q; if (error) { toast('Enregistrement impossible : ' + esc(error.message)); return; }
+      Object.assign(m, patch); if (m.user_id === state.moi.user_id) Object.assign(state.moi, patch);
+      fermerModal(); toast('Enregistré'); vueEquipe();
+    });
+  });
 }
 
 /* ---- Développement (administrateur) : demandes transmises à l'agent de développement ---- */

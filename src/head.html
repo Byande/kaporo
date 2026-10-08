@@ -400,6 +400,30 @@ table.tb .jauge{margin-bottom:.15em}
   .rdoc{grid-template-columns:auto 1fr}.rdoc .actions{grid-column:1/-1}
 }
 
+/* ---- Réunions ---- */
+.rcard{display:grid;grid-template-columns:auto 1fr auto;gap:.9em;align-items:center;cursor:pointer}
+.rcard:hover{border-color:var(--marine)}
+.rdate{width:3.2em;height:3.2em;border-radius:.6em;background:var(--encre);color:#fff;display:grid;place-items:center;line-height:1;flex:none}
+.rdate b{font-family:var(--serif);font-size:1.35em}
+.rdate small{font-size:.65em;color:var(--or);text-transform:uppercase;letter-spacing:.04em}
+.coches{display:grid;grid-template-columns:repeat(2,1fr);gap:.3em .8em;margin:.3em 0 .6em}
+.coches .coche{font-weight:500;color:var(--texte)}
+.composer-r{background:var(--ivoire);border:1px solid var(--trait);border-radius:var(--r);padding:.7em .8em;display:flex;flex-direction:column;gap:.5em}
+.composer-r .filtres{margin:0}
+.composer-r textarea{width:100%;border:1px solid var(--trait);border-radius:.5em;padding:.55em .7em;background:#fff;resize:vertical}
+.composer-r textarea:focus{outline:2px solid var(--or);border-color:var(--or)}
+.rnote{display:flex;gap:.6em;padding:.55em 0;border-top:1px solid var(--grille);align-items:flex-start}
+.rnote:first-child{border-top:0}
+.rnote .meta{display:flex;gap:.4em;align-items:center;flex-wrap:wrap;font-size:.86em;margin-bottom:.15em}
+.rnote p{white-space:pre-wrap;overflow-wrap:anywhere;font-size:.95em}
+.rnote .actions{flex-wrap:nowrap}
+.cr-apercu{max-height:22em;overflow:auto;border:1px solid var(--trait);border-radius:.4em;background:#fff}
+.cr-apercu .ql-editor{padding:.9em 1.1em;font-size:.9em}
+.cr-apercu .ql-editor h1{font-size:1.3em}.cr-apercu .ql-editor h2{font-size:1.05em;margin-top:.8em}
+.cr-apercu table,.ql-editor table{border-collapse:collapse;width:100%;margin:.4em 0}
+.cr-apercu td,.cr-apercu th,.ql-editor td,.ql-editor th{border:1px solid var(--trait);padding:.3em .5em;text-align:left;font-size:.95em}
+@media (max-width:820px){.coches{grid-template-columns:1fr}.rcard{grid-template-columns:auto 1fr}.rcard>.etat{grid-column:2}}
+
 /* ---- Mobile ---- */
 @media (max-width:820px){
   .app{grid-template-columns:1fr;grid-template-rows:auto 1fr auto}
