@@ -1,0 +1,638 @@
+/* ============================================================
+   Kaporo — noyau : configuration, état, utilitaires
+   ============================================================ */
+const SUPA = { url: 'https://opbxmnrtbzsxgwtfeemv.supabase.co', key: 'sb_publishable_UhCNYCizOEoofZ7_BiVs9g_7Z0wElT8', bucket: 'kp-files' };
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = n => String(n).padStart(2, '0');
+const hhmm = d => pad(d.getHours()) + ':' + pad(d.getMinutes());
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+const JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
+function dateFr(x, opts = {}) {
+  if (!x) return '—';
+  const d = x instanceof Date ? x : new Date(x.length === 10 ? x + 'T12:00:00' : x);
+  if (isNaN(d)) return '—';
+  const s = d.getDate() + ' ' + MOIS[d.getMonth()] + (opts.annee === false ? '' : ' ' + d.getFullYear());
+  return opts.jour ? JOURS[d.getDay()] + ' ' + s : s;
+}
+function jourRelatif(d) {
+  const a = new Date(); a.setHours(0, 0, 0, 0);
+  const b = new Date(d); b.setHours(0, 0, 0, 0);
+  const diff = Math.round((a - b) / 86400000);
+  if (diff === 0) return 'Aujourd’hui';
+  if (diff === 1) return 'Hier';
+  if (diff < 7) return JOURS[b.getDay()].replace(/^./, c => c.toUpperCase());
+  return dateFr(b, { jour: true });
+}
+const octets = n => !n ? '' : n < 1024 ? n + ' o' : n < 1048576 ? (n / 1024).toFixed(0) + ' Ko' : (n / 1048576).toFixed(1) + ' Mo';
+const initiales = n => (n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+function linkify(t) {
+  return esc(t).replace(/(https?:\/\/[^\s<]+)/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+}
+let toastT;
+function toast(html, ms = 2600) { const t = $('#toast'); t.innerHTML = html; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), ms); }
+
+/* État applicatif */
+const state = {
+  client: null, session: null, moi: null,
+  vue: localStorage.getItem('kp.vue') || 'discussions',
+  canal: localStorage.getItem('kp.canal') || null, salonOuvert: false,
+  membres: [], projets: [], canaux: [], messages: [], lectures: {}, documents: [], decisions: [], phases: [], taches: [],
+  reponseA: null, pj: null, selection: null, urls: {}, filtreProjet: 'tous', filtreDoc: 'tous', filtreTache: 'ouvertes',
+};
+const membre = id => state.membres.find(m => m.user_id === id) || { name: 'Membre', color: '#6B6B6B', user_id: id };
+const projet = id => state.projets.find(p => p.id === id);
+const nomProjet = id => id ? (projet(id)?.name || id) : 'Général';
+
+/* Modale générique */
+function modal(html, onMount) {
+  const o = $('#overlay');
+  o.innerHTML = `<div class="modal" id="modal"><div class="boite">${html}</div></div>`;
+  const m = $('#modal');
+  m.addEventListener('click', e => { if (e.target === m) fermerModal(); });
+  if (onMount) onMount(m);
+  return m;
+}
+function fermerModal() { $('#overlay').innerHTML = ''; }
+function lightbox(src) {
+  const o = $('#overlay');
+  o.innerHTML = `<div class="lightbox" id="lb"><button aria-label="Fermer">✕</button><img src="${src}" alt=""></div>`;
+  $('#lb').addEventListener('click', fermerModal);
+}
+
+/* Fichiers du coffre : URLs signées (1 h), mises en cache */
+async function urlFichier(path) {
+  const c = state.urls[path];
+  if (c && c.exp > Date.now()) return c.url;
+  const { data, error } = await state.client.storage.from(SUPA.bucket).createSignedUrl(path, 3600);
+  if (error) throw error;
+  state.urls[path] = { url: data.signedUrl, exp: Date.now() + 3300000 };
+  return data.signedUrl;
+}
+async function televerser(file, dossier) {
+  const nom = file.name.replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `${dossier}/${Date.now()}_${nom}`;
+  const { error } = await state.client.storage.from(SUPA.bucket).upload(path, file, { contentType: file.type || 'application/octet-stream', upsert: false });
+  if (error) throw error;
+  return { path, name: file.name, mime: file.type, size: file.size };
+}
+
+/* ============================================================
+   Connexion : lien magique ou mot de passe ; liste blanche côté base
+   ============================================================ */
+let modePass = false;
+function msgLogin(type, html) { $('#l-msg').innerHTML = html ? `<div class="msg ${type}">${html}</div>` : ''; }
+function expliquerErreur(e) {
+  const m = (e && e.message) || String(e);
+  if (/KAPORO_NOT_INVITED|Database error saving new user|Signups not allowed/i.test(m)) return 'Cette adresse n’est pas encore invitée. Demandez à Paul de vous ajouter dans l’onglet Équipe.';
+  if (/Invalid login credentials/i.test(m)) return 'E-mail ou mot de passe incorrect.';
+  if (/rate limit|security purposes/i.test(m)) return 'Trop de demandes en peu de temps. Patientez une minute puis réessayez.';
+  if (/Email not confirmed/i.test(m)) return 'Adresse non confirmée : cliquez d’abord sur le lien reçu par e-mail.';
+  return 'Connexion impossible : ' + esc(m);
+}
+function initLogin() {
+  $('#l-toggle').addEventListener('click', () => {
+    modePass = !modePass;
+    $('#l-pass-wrap').hidden = !modePass;
+    $('#l-btn').textContent = modePass ? 'Se connecter' : 'Recevoir mon lien de connexion';
+    $('#l-toggle').textContent = modePass ? 'Recevoir plutôt un lien par e-mail' : 'J’ai déjà un mot de passe';
+    msgLogin('', '');
+  });
+  $('#f-login').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = $('#l-email').value.trim().toLowerCase();
+    const btn = $('#l-btn'); btn.disabled = true; msgLogin('info', 'Un instant…');
+    try {
+      if (modePass) {
+        const { error } = await state.client.auth.signInWithPassword({ email, password: $('#l-pass').value });
+        if (error) throw error;
+        msgLogin('', '');
+      } else {
+        const redirect = location.origin + location.pathname;
+        const { error } = await state.client.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect, shouldCreateUser: true } });
+        if (error) throw error;
+        msgLogin('ok', `<b>Lien envoyé à ${esc(email)}.</b><br>Ouvrez l’e-mail sur cet appareil et touchez le lien pour entrer. Pensez à vérifier les courriers indésirables.`);
+      }
+    } catch (err) { msgLogin('err', expliquerErreur(err)); }
+    btn.disabled = false;
+  });
+}
+async function definirMotDePasse(pw) {
+  const { error } = await state.client.auth.updateUser({ password: pw });
+  if (error) throw error;
+}
+async function deconnecter() { await state.client.auth.signOut(); location.reload(); }
+
+/* ============================================================
+   Discussions : canaux, fil de messages, composer, temps réel
+   ============================================================ */
+const msgsCanal = id => state.messages.filter(m => m.channel_id === id);
+function nonLus(id) {
+  const lu = state.lectures[id] ? new Date(state.lectures[id]).getTime() : 0;
+  return msgsCanal(id).filter(m => m.author !== state.moi.user_id && new Date(m.created_at).getTime() > lu).length;
+}
+const totalNonLus = () => state.canaux.reduce((s, c) => s + nonLus(c.id), 0);
+function resumeMessage(m) {
+  if (!m) return 'Aucun message';
+  if (m.deleted) return 'Message supprimé';
+  const a = m.attachment;
+  const pj = a ? (a.mime?.startsWith('image/') ? '📷 Photo' : '📎 ' + a.name) : '';
+  return (m.body || pj || '').slice(0, 80);
+}
+
+function vueDiscussions() {
+  const main = $('#main'); main.className = 'chat';
+  main.innerHTML = `<div class="chat-wrap ${state.salonOuvert ? 'ouvert' : ''}" id="chat">
+    <aside class="canaux"><h2>Discussions</h2><div id="liste-canaux"></div></aside>
+    <section class="salon" id="salon"></section></div>`;
+  renderCanaux();
+  if (!state.canal || !state.canaux.find(c => c.id === state.canal)) state.canal = state.canaux[0]?.id;
+  renderSalon();
+}
+function renderCanaux() {
+  const el = $('#liste-canaux'); if (!el) return;
+  el.innerHTML = state.canaux.map(c => {
+    const ms = msgsCanal(c.id); const dernier = ms[ms.length - 1]; const nl = nonLus(c.id);
+    const qui = dernier ? (dernier.author === state.moi.user_id ? 'Vous' : membre(dernier.author).name.split(' ')[0]) + ' : ' : '';
+    return `<button class="canal ${c.kind === 'general' ? 'gen' : ''} ${c.id === state.canal ? 'on' : ''}" data-id="${c.id}">
+      <span class="ic">${c.kind === 'general' ? '✦' : c.name.replace(/\D/g, '') || c.name[0]}</span>
+      <span><b>${esc(c.name)}</b><small>${esc(qui + resumeMessage(dernier))}</small></span>
+      <span class="meta"><span>${dernier ? (jourRelatif(dernier.created_at) === 'Aujourd’hui' ? hhmm(new Date(dernier.created_at)) : dateFr(dernier.created_at, { annee: false })) : ''}</span>${nl ? `<span class="bd">${nl}</span>` : ''}</span></button>`;
+  }).join('');
+  $$('.canal', el).forEach(b => b.addEventListener('click', () => ouvrirCanal(b.dataset.id)));
+}
+function ouvrirCanal(id) {
+  state.canal = id; state.salonOuvert = true; state.reponseA = null; state.selection = null;
+  localStorage.setItem('kp.canal', id);
+  $('#chat')?.classList.add('ouvert');
+  renderCanaux(); renderSalon();
+}
+function fermerSalon() { state.salonOuvert = false; $('#chat')?.classList.remove('ouvert'); renderCanaux(); }
+
+function renderSalon() {
+  const s = $('#salon'); if (!s) return;
+  const c = state.canaux.find(x => x.id === state.canal);
+  if (!c) { s.innerHTML = '<div class="vide">Choisissez une discussion.</div>'; return; }
+  s.innerHTML = `<div class="tete"><button class="retour" id="retour" aria-label="Retour">‹</button>
+      <span class="avatar" style="background:${c.kind === 'general' ? 'var(--or)' : 'var(--encre)'};color:${c.kind === 'general' ? 'var(--encre)' : 'var(--or)'}">${c.kind === 'general' ? '✦' : c.name.replace(/\D/g, '') || c.name[0]}</span>
+      <div><b>${esc(c.name)}</b><small>${state.membres.map(m => m.name.split(' ')[0]).join(', ')}</small></div></div>
+    <div class="fil" id="fil"></div>
+    <div class="composer" id="composer"></div>`;
+  $('#retour').addEventListener('click', fermerSalon);
+  renderFil(); renderComposer(); marquerLu(c.id);
+}
+function renderFil(garderScroll) {
+  const fil = $('#fil'); if (!fil) return;
+  const ms = msgsCanal(state.canal);
+  const enBas = !garderScroll || fil.scrollHeight - fil.scrollTop - fil.clientHeight < 120;
+  let jour = ''; const out = [];
+  if (!ms.length) out.push('<div class="systeme">Début de la discussion. Écrivez le premier message.</div>');
+  for (const m of ms) {
+    const j = jourRelatif(m.created_at);
+    if (j !== jour) { out.push(`<div class="jour">${j}</div>`); jour = j; }
+    out.push(bulle(m));
+    if (state.selection === m.id) out.push(actionsBulle(m));
+  }
+  fil.innerHTML = out.join('');
+  $$('.bulle', fil).forEach(b => b.addEventListener('click', e => {
+    if (e.target.closest('a,img')) return;
+    state.selection = state.selection === b.dataset.id ? null : b.dataset.id; renderFil(true);
+  }));
+  $$('img.pj', fil).forEach(img => { chargerImage(img); img.addEventListener('click', () => img.src && img.dataset.ok && lightbox(img.src)); });
+  $$('a.fichier', fil).forEach(a => a.addEventListener('click', async e => { e.preventDefault(); try { window.open(await urlFichier(a.dataset.path), '_blank'); } catch (err) { toast('Fichier indisponible'); } }));
+  $$('.bulle-actions button', fil).forEach(b => b.addEventListener('click', e => { e.stopPropagation(); actionMessage(b.dataset.act, b.dataset.id); }));
+  if (enBas) fil.scrollTop = fil.scrollHeight;
+}
+function bulle(m) {
+  const moi = m.author === state.moi.user_id; const a = membre(m.author);
+  let corps = '';
+  if (m.deleted) corps = '<div class="txt">Message supprimé</div>';
+  else {
+    if (m.reply_to) { const r = state.messages.find(x => x.id === m.reply_to); corps += `<div class="rep"><b>${esc(r ? membre(r.author).name : 'Message')}</b>${esc(resumeMessage(r))}</div>`; }
+    if (m.attachment) {
+      const p = m.attachment;
+      corps += p.mime?.startsWith('image/') ? `<img class="pj" data-path="${esc(p.path)}" alt="${esc(p.name)}">`
+        : `<a class="fichier" href="#" data-path="${esc(p.path)}"><span class="ic">${esc((p.name.split('.').pop() || 'DOC').slice(0, 4).toUpperCase())}</span><span><b>${esc(p.name)}</b><small>${octets(p.size)}</small></span></a>`;
+    }
+    if (m.body) corps += `<div class="txt">${linkify(m.body)}</div>`;
+  }
+  return `<div class="bulle ${moi ? 'moi' : ''} ${m.deleted ? 'supprime' : ''} ${state.selection === m.id ? 'sel' : ''}" data-id="${m.id}">
+    ${moi ? '' : `<div class="qui" style="color:${a.color}">${esc(a.name)}</div>`}${corps}
+    <div class="quand">${m.edited_at ? '<span>modifié</span>' : ''}<span>${hhmm(new Date(m.created_at))}</span></div></div>`;
+}
+function actionsBulle(m) {
+  const moi = m.author === state.moi.user_id;
+  return `<div class="bulle-actions">
+    <button data-act="repondre" data-id="${m.id}">↩ Répondre</button>
+    ${m.body ? `<button data-act="copier" data-id="${m.id}">Copier</button>` : ''}
+    ${m.attachment && !m.deleted ? `<button data-act="coffre" data-id="${m.id}">Classer dans Documents</button>` : ''}
+    ${moi && !m.deleted ? `<button data-act="supprimer" data-id="${m.id}">Supprimer</button>` : ''}</div>`;
+}
+async function chargerImage(img) {
+  try { img.src = await urlFichier(img.dataset.path); img.dataset.ok = '1'; } catch (e) { img.alt = 'Image indisponible'; }
+}
+async function actionMessage(act, id) {
+  const m = state.messages.find(x => x.id === id); if (!m) return;
+  state.selection = null;
+  if (act === 'repondre') { state.reponseA = m; renderFil(true); renderComposer(); $('#txt')?.focus(); return; }
+  if (act === 'copier') { try { await navigator.clipboard.writeText(m.body); toast('Texte copié'); } catch (e) { } renderFil(true); return; }
+  if (act === 'supprimer') {
+    const { error } = await state.client.from('kp_messages').update({ deleted: true, body: '', attachment: null }).eq('id', id);
+    if (error) toast('Suppression impossible'); else { m.deleted = true; m.body = ''; m.attachment = null; }
+    renderFil(true); renderCanaux(); return;
+  }
+  if (act === 'coffre') { renderFil(true); classerPieceJointe(m); }
+}
+function classerPieceJointe(m) {
+  const p = m.attachment; const c = state.canaux.find(x => x.id === m.channel_id);
+  modal(`<h3>Classer dans Documents</h3>
+    <label class="champ"><span>Titre</span><input id="d-titre" value="${esc(p.name.replace(/\.[^.]+$/, ''))}"></label>
+    <label class="champ"><span>Projet</span><select id="d-projet">${optionsProjets(c?.project_id)}</select></label>
+    <label class="champ"><span>Catégorie</span><select id="d-cat">${CATEGORIES.map(x => `<option>${x}</option>`).join('')}</select></label>
+    <div class="actions"><button class="btn prim" id="d-ok">Classer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#d-ok', mo).addEventListener('click', async () => {
+      const { data, error } = await state.client.from('kp_documents').insert({ project_id: $('#d-projet').value || null, title: $('#d-titre').value.trim() || p.name, category: $('#d-cat').value, path: p.path, size: p.size, mime: p.mime, uploaded_by: state.moi.user_id, note: 'Depuis la discussion ' + (c?.name || '') }).select().single();
+      if (error) { toast('Classement impossible'); return; }
+      state.documents.unshift(data); fermerModal(); toast('<b>Document classé</b> dans ' + esc(nomProjet(data.project_id)));
+    });
+  });
+}
+
+function renderComposer() {
+  const c = $('#composer'); if (!c) return;
+  const r = state.reponseA; const pj = state.pj;
+  c.innerHTML = `${r ? `<div class="repondre"><div><b>${esc(membre(r.author).name)}</b><span>${esc(resumeMessage(r))}</span></div><button id="rep-x" aria-label="Annuler">✕</button></div>` : ''}
+    ${pj ? `<div class="pj-apercu">${pj.type.startsWith('image/') ? `<img src="${pj.url}" alt="">` : '📎'}<span>${esc(pj.file.name)} · ${octets(pj.file.size)}</span><button id="pj-x" aria-label="Retirer">✕</button></div>` : ''}
+    <div class="barre"><input type="file" id="pj-input" hidden accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.dwg,.dxf,.zip,.txt">
+      <button class="rond pj" id="pj-btn" title="Joindre une photo ou un fichier">📎</button>
+      <textarea id="txt" rows="1" placeholder="Écrire un message…" enterkeyhint="send"></textarea>
+      <button class="rond env" id="env" title="Envoyer">➤</button></div>`;
+  const txt = $('#txt', c);
+  txt.addEventListener('input', () => { txt.style.height = 'auto'; txt.style.height = Math.min(txt.scrollHeight, 150) + 'px'; });
+  txt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(min-width:821px)').matches) { e.preventDefault(); envoyer(); } });
+  $('#env', c).addEventListener('click', envoyer);
+  $('#pj-btn', c).addEventListener('click', () => $('#pj-input').click());
+  $('#pj-input', c).addEventListener('change', e => {
+    const f = e.target.files[0]; if (!f) return;
+    if (f.size > 50 * 1048576) { toast('Fichier trop lourd (50 Mo maximum)'); return; }
+    state.pj = { file: f, type: f.type || '', url: f.type.startsWith('image/') ? URL.createObjectURL(f) : null };
+    const v = txt.value; renderComposer(); $('#txt').value = v; $('#txt').focus();
+  });
+  $('#rep-x', c)?.addEventListener('click', () => { state.reponseA = null; const v = txt.value; renderComposer(); $('#txt').value = v; });
+  $('#pj-x', c)?.addEventListener('click', () => { state.pj = null; const v = txt.value; renderComposer(); $('#txt').value = v; });
+}
+let envoiEnCours = false;
+async function envoyer() {
+  if (envoiEnCours) return;
+  const txt = $('#txt'); const body = txt.value.trim();
+  if (!body && !state.pj) return;
+  envoiEnCours = true; $('#env').disabled = true;
+  try {
+    let attachment = null;
+    if (state.pj) { toast('Envoi du fichier…', 8000); attachment = await televerser(state.pj.file, 'chat/' + state.canal); }
+    const row = { channel_id: state.canal, author: state.moi.user_id, body, attachment, reply_to: state.reponseA?.id || null };
+    const { data, error } = await state.client.from('kp_messages').insert(row).select().single();
+    if (error) throw error;
+    if (!state.messages.find(m => m.id === data.id)) state.messages.push(data);
+    state.reponseA = null; state.pj = null; txt.value = ''; txt.style.height = 'auto';
+    renderComposer(); renderFil(); renderCanaux(); marquerLu(state.canal); $('#txt').focus();
+    $('#toast').classList.remove('on');
+  } catch (e) { console.error(e); toast('<b>Envoi impossible.</b> Vérifiez la connexion.'); }
+  envoiEnCours = false; const b = $('#env'); if (b) b.disabled = false;
+}
+async function marquerLu(id) {
+  const now = new Date().toISOString(); state.lectures[id] = now; renderNav();
+  await state.client.from('kp_reads').upsert({ user_id: state.moi.user_id, channel_id: id, last_read: now });
+}
+function messageRecu(m) {
+  const i = state.messages.findIndex(x => x.id === m.id);
+  if (i >= 0) state.messages[i] = m; else state.messages.push(m);
+  state.messages.sort((a, b) => a.created_at < b.created_at ? -1 : 1);
+  const visible = state.vue === 'discussions' && state.canal === m.channel_id && (state.salonOuvert || window.matchMedia('(min-width:821px)').matches) && document.visibilityState === 'visible';
+  if (visible) { renderFil(true); marquerLu(m.channel_id); }
+  if (state.vue === 'discussions') renderCanaux();
+  renderNav();
+  if (i < 0 && m.author !== state.moi.user_id) {
+    const a = membre(m.author); const c = state.canaux.find(x => x.id === m.channel_id);
+    if (!visible) toast(`<b>${esc(a.name)}</b> · ${esc(c?.name || '')}<br>${esc(resumeMessage(m))}`);
+    if (document.visibilityState !== 'visible' && 'Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(a.name + ' · ' + (c?.name || 'Kaporo'), { body: resumeMessage(m), tag: m.id }); } catch (e) { }
+    }
+  }
+}
+
+/* ============================================================
+   Vues : projets et phases, documents, décisions, tâches, équipe
+   ============================================================ */
+const CATEGORIES = ['Foncier', 'Plans et relevés', 'Études techniques', 'Esquisses', 'Financier', 'Juridique', 'Administratif', 'Marché et concurrence', 'Photos de site', 'Comptes rendus', 'Autre'];
+const STATUTS_PHASE = ['à venir', 'en cours', 'terminée', 'en attente'];
+const optionsProjets = (sel, avecGeneral = true) => (avecGeneral ? `<option value="" ${!sel ? 'selected' : ''}>Général (les deux projets)</option>` : '') + state.projets.map(p => `<option value="${p.id}" ${p.id === sel ? 'selected' : ''}>${esc(p.name)}</option>`).join('');
+const classeStatut = s => ({ 'en cours': 'ambre', 'terminée': '', 'à venir': 'gris', 'en attente': 'bleu', 'étude': 'ambre', 'validée': '', 'à confirmer': 'ambre', 'annulée': 'rouge' }[s] ?? 'gris');
+function filtresProjet(cle) {
+  const v = state[cle];
+  return `<div class="filtres">${[['tous', 'Tout'], ['', 'Général'], ...state.projets.map(p => [p.id, p.name])].map(([k, l]) => `<button class="${v === k ? 'on' : ''}" data-f="${k}">${esc(l)}</button>`).join('')}</div>`;
+}
+function brancherFiltres(cle, rerender) { $$('.filtres button').forEach(b => b.addEventListener('click', () => { state[cle] = b.dataset.f; rerender(); })); }
+const passeFiltre = (cle, pid) => state[cle] === 'tous' || (state[cle] === '' ? !pid : pid === state[cle]);
+
+/* ---- Projets ---- */
+function vueProjets() {
+  const main = $('#main'); main.className = '';
+  main.innerHTML = `<div class="vue"><h1>Projets</h1><p class="sous">Les phases vont du cadrage du 6 octobre 2026 jusqu’à l’exploitation et aux scénarios de sortie des acquéreurs. Changez l’état d’une phase directement dans la liste.</p>
+    <div class="g g2">${state.projets.map(carteProjet).join('')}</div></div>`;
+  $$('select[data-phase]').forEach(s => s.addEventListener('change', async () => {
+    const { error } = await state.client.from('kp_phases').update({ status: s.value }).eq('id', s.dataset.phase);
+    if (error) { toast('Modification impossible'); return; }
+    const ph = state.phases.find(p => p.id === s.dataset.phase); if (ph) ph.status = s.value; vueProjets(); toast('Phase mise à jour');
+  }));
+}
+function carteProjet(p) {
+  const phases = state.phases.filter(x => x.project_id === p.id).sort((a, b) => a.num - b.num);
+  const faites = phases.filter(x => x.status === 'terminée').length;
+  const docs = state.documents.filter(d => d.project_id === p.id).length;
+  const taches = state.taches.filter(t => t.project_id === p.id && t.status !== 'fait').length;
+  return `<div class="carte"><h3>${esc(p.name)} <span class="etat ${classeStatut(p.status)}">${esc(p.status)}</span></h3>
+    <p class="muted sm" style="margin-bottom:.6em">${esc(p.subtitle || '')}${p.surface_m2 ? ` · <b class="num">${p.surface_m2.toLocaleString('fr-FR')} m²</b>` : ''}</p>
+    <p class="sm" style="margin-bottom:.6em">${phases.length ? `${faites}/${phases.length} phases terminées` : 'Aucune phase définie'} · ${docs} document${docs > 1 ? 's' : ''} · ${taches} tâche${taches > 1 ? 's' : ''} ouverte${taches > 1 ? 's' : ''}</p>
+    ${phases.length ? phases.map(ph => `<div class="phase ${ph.status === 'en cours' ? 'encours' : ph.status === 'terminée' ? 'fait' : ''}"><span class="n">${ph.num}</span>
+        <div><b>${esc(ph.title)}</b><small>${ph.start_on ? dateFr(ph.start_on) : '—'} → ${ph.end_on ? dateFr(ph.end_on) : 'en continu'}</small><small>${esc(ph.deliverable || '')}</small></div>
+        <select class="inline" data-phase="${ph.id}">${STATUTS_PHASE.map(s => `<option ${s === ph.status ? 'selected' : ''}>${s}</option>`).join('')}</select></div>`).join('')
+      : '<div class="vide">Les phases seront définies après la visite du second terrain.</div>'}</div>`;
+}
+
+/* ---- Documents ---- */
+function vueDocuments() {
+  const main = $('#main'); main.className = '';
+  const docs = state.documents.filter(d => passeFiltre('filtreDoc', d.project_id));
+  main.innerHTML = `<div class="vue"><h1>Documents</h1><p class="sous">Le coffre du projet : plans, titres, études, esquisses, comptes rendus. Chaque fichier est privé et réservé aux membres.</p>
+    <div class="actions" style="margin-bottom:1em"><button class="btn prim" id="d-ajout">＋ Ajouter un document</button></div>
+    ${filtresProjet('filtreDoc')}
+    <div class="carte" id="d-liste">${docs.length ? docs.map(ligneDoc).join('') : '<div class="vide">Aucun document pour ce filtre.</div>'}</div></div>`;
+  brancherFiltres('filtreDoc', vueDocuments);
+  $('#d-ajout').addEventListener('click', formDocument);
+  $$('.doc [data-ouvrir]').forEach(b => b.addEventListener('click', async () => { try { window.open(await urlFichier(b.dataset.ouvrir), '_blank'); } catch (e) { toast('Fichier indisponible'); } }));
+  $$('.doc [data-suppr]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Retirer ce document du coffre ?')) return;
+    const { error } = await state.client.from('kp_documents').delete().eq('id', b.dataset.suppr);
+    if (error) { toast('Suppression impossible'); return; }
+    state.documents = state.documents.filter(d => d.id !== b.dataset.suppr); vueDocuments();
+  }));
+}
+function ligneDoc(d) {
+  const ext = (d.title.includes('.') ? d.title.split('.').pop() : (d.mime || '').split('/').pop() || 'doc').slice(0, 4).toUpperCase();
+  const mien = d.uploaded_by === state.moi.user_id || state.moi.is_admin;
+  return `<div class="doc"><span class="ic">${esc(ext)}</span><div><b>${esc(d.title)}</b><small>${esc(d.category)} · ${esc(nomProjet(d.project_id))} · ${dateFr(d.created_at)} · ${esc(membre(d.uploaded_by).name)}${d.size ? ' · ' + octets(d.size) : ''}</small>${d.note ? `<small>${esc(d.note)}</small>` : ''}</div>
+    <span class="actions"><button class="btn sm" data-ouvrir="${esc(d.path)}">Ouvrir</button>${mien ? `<button class="btn sm" data-suppr="${d.id}" title="Retirer">✕</button>` : ''}</span></div>`;
+}
+function formDocument() {
+  modal(`<h3>Ajouter un document</h3>
+    <label class="champ"><span>Fichier (50 Mo max.)</span><input type="file" id="d-file" required></label>
+    <label class="champ"><span>Titre</span><input id="d-titre" placeholder="Ex. Plan de bornage parcelles 2 et 3"></label>
+    <label class="champ"><span>Projet</span><select id="d-projet">${optionsProjets(state.filtreDoc === 'tous' ? 'kaporo1' : state.filtreDoc)}</select></label>
+    <label class="champ"><span>Catégorie</span><select id="d-cat">${CATEGORIES.map(x => `<option>${x}</option>`).join('')}</select></label>
+    <label class="champ"><span>Note (facultatif)</span><input id="d-note" placeholder="Source, version, remarque"></label>
+    <div class="actions"><button class="btn prim" id="d-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#d-file', mo).addEventListener('change', e => { const f = e.target.files[0]; if (f && !$('#d-titre').value) $('#d-titre').value = f.name.replace(/\.[^.]+$/, ''); });
+    $('#d-ok', mo).addEventListener('click', async () => {
+      const f = $('#d-file').files[0]; if (!f) { toast('Choisissez un fichier'); return; }
+      if (f.size > 50 * 1048576) { toast('Fichier trop lourd (50 Mo maximum)'); return; }
+      $('#d-ok').disabled = true; toast('Envoi en cours…', 10000);
+      try {
+        const pid = $('#d-projet').value || null;
+        const p = await televerser(f, 'docs/' + (pid || 'general'));
+        const { data, error } = await state.client.from('kp_documents').insert({ project_id: pid, title: $('#d-titre').value.trim() || f.name, category: $('#d-cat').value, note: $('#d-note').value.trim() || null, path: p.path, size: p.size, mime: p.mime, uploaded_by: state.moi.user_id }).select().single();
+        if (error) throw error;
+        if (!state.documents.find(d => d.id === data.id)) state.documents.unshift(data);
+        fermerModal(); vueDocuments(); toast('<b>Document ajouté</b>');
+      } catch (e) { console.error(e); toast('<b>Envoi impossible.</b> ' + esc(e.message || '')); $('#d-ok').disabled = false; }
+    });
+  });
+}
+
+/* ---- Décisions ---- */
+function vueDecisions() {
+  const main = $('#main'); main.className = '';
+  const ds = state.decisions.filter(d => passeFiltre('filtreProjet', d.project_id));
+  main.innerHTML = `<div class="vue"><h1>Décisions</h1><p class="sous">Le journal des décisions : ce qui a été tranché, quand, par qui. C’est la mémoire du projet et la trace que demandera une banque.</p>
+    <div class="actions" style="margin-bottom:1em"><button class="btn prim" id="dc-ajout">＋ Consigner une décision</button></div>
+    ${filtresProjet('filtreProjet')}
+    <div class="carte">${ds.length ? ds.map(d => `<div class="ligne"><div><b>${esc(d.title)}</b><small>${dateFr(d.decided_on)} · ${esc(nomProjet(d.project_id))} · ${esc(membre(d.decided_by).name)}</small>${d.detail ? `<small style="white-space:pre-wrap;margin-top:.2em">${esc(d.detail)}</small>` : ''}</div>
+        <span class="actions"><span class="etat ${classeStatut(d.status)}">${esc(d.status)}</span>${d.decided_by === state.moi.user_id || state.moi.is_admin ? `<button class="btn sm" data-suppr="${d.id}">✕</button>` : ''}</span></div>`).join('') : '<div class="vide">Aucune décision consignée.</div>'}</div></div>`;
+  brancherFiltres('filtreProjet', vueDecisions);
+  $('#dc-ajout').addEventListener('click', () => modal(`<h3>Consigner une décision</h3>
+    <label class="champ"><span>Décision</span><input id="dc-titre" placeholder="Ex. Variante B retenue pour l’esquisse"></label>
+    <label class="champ"><span>Détail, motifs</span><textarea id="dc-detail" rows="3"></textarea></label>
+    <label class="champ"><span>Projet</span><select id="dc-projet">${optionsProjets(state.filtreProjet === 'tous' ? 'kaporo1' : state.filtreProjet)}</select></label>
+    <label class="champ"><span>Date</span><input id="dc-date" type="date" value="${new Date().toISOString().slice(0, 10)}"></label>
+    <label class="champ"><span>Statut</span><select id="dc-statut"><option>validée</option><option>à confirmer</option><option>annulée</option></select></label>
+    <div class="actions"><button class="btn prim" id="dc-ok">Enregistrer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#dc-ok', mo).addEventListener('click', async () => {
+      const title = $('#dc-titre').value.trim(); if (!title) return;
+      const { data, error } = await state.client.from('kp_decisions').insert({ title, detail: $('#dc-detail').value.trim() || null, project_id: $('#dc-projet').value || null, decided_on: $('#dc-date').value, status: $('#dc-statut').value, decided_by: state.moi.user_id }).select().single();
+      if (error) { toast('Enregistrement impossible'); return; }
+      if (!state.decisions.find(d => d.id === data.id)) state.decisions.unshift(data); fermerModal(); vueDecisions(); toast('Décision consignée');
+    });
+  }));
+  $$('[data-suppr]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Supprimer cette décision ?')) return;
+    const { error } = await state.client.from('kp_decisions').delete().eq('id', b.dataset.suppr);
+    if (error) { toast('Suppression impossible'); return; }
+    state.decisions = state.decisions.filter(d => d.id !== b.dataset.suppr); vueDecisions();
+  }));
+}
+
+/* ---- Tâches ---- */
+function vueTaches() {
+  const main = $('#main'); main.className = '';
+  const auj = new Date().toISOString().slice(0, 10);
+  let ts = state.taches.filter(t => passeFiltre('filtreProjet', t.project_id));
+  if (state.filtreTache === 'ouvertes') ts = ts.filter(t => t.status !== 'fait');
+  ts.sort((a, b) => (a.status === 'fait') - (b.status === 'fait') || (a.due_on || '9') .localeCompare(b.due_on || '9'));
+  main.innerHTML = `<div class="vue"><h1>Tâches</h1><p class="sous">Qui fait quoi, pour quand. Cochez une tâche terminée ; les retards apparaissent en rouge.</p>
+    <div class="actions" style="margin-bottom:1em"><button class="btn prim" id="t-ajout">＋ Nouvelle tâche</button>
+      <button class="btn ${state.filtreTache === 'ouvertes' ? 'prim' : ''}" id="t-ouv">Ouvertes</button><button class="btn ${state.filtreTache === 'toutes' ? 'prim' : ''}" id="t-tout">Toutes</button></div>
+    ${filtresProjet('filtreProjet')}
+    <div class="carte">${ts.length ? ts.map(t => `<div class="tache ${t.status === 'fait' ? 'fait' : ''} ${t.status !== 'fait' && t.due_on && t.due_on < auj ? 'retard' : ''}"><input type="checkbox" data-t="${t.id}" ${t.status === 'fait' ? 'checked' : ''}>
+        <div><b>${esc(t.title)}</b><small>${t.assignee ? esc(membre(t.assignee).name) : 'Non attribuée'} · ${esc(nomProjet(t.project_id))}${t.due_on ? ' · pour le ' + dateFr(t.due_on) : ''}</small></div>
+        ${t.created_by === state.moi.user_id || state.moi.is_admin || !t.created_by ? `<button class="btn sm" data-suppr="${t.id}">✕</button>` : '<span></span>'}</div>`).join('') : '<div class="vide">Aucune tâche.</div>'}</div></div>`;
+  brancherFiltres('filtreProjet', vueTaches);
+  $('#t-ouv').addEventListener('click', () => { state.filtreTache = 'ouvertes'; vueTaches(); });
+  $('#t-tout').addEventListener('click', () => { state.filtreTache = 'toutes'; vueTaches(); });
+  $$('input[data-t]').forEach(c => c.addEventListener('change', async () => {
+    const t = state.taches.find(x => x.id === c.dataset.t); const fait = c.checked;
+    const { error } = await state.client.from('kp_tasks').update({ status: fait ? 'fait' : 'à faire', done_at: fait ? new Date().toISOString() : null }).eq('id', t.id);
+    if (error) { toast('Modification impossible'); c.checked = !fait; return; }
+    t.status = fait ? 'fait' : 'à faire'; vueTaches();
+  }));
+  $$('[data-suppr]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Supprimer cette tâche ?')) return;
+    const { error } = await state.client.from('kp_tasks').delete().eq('id', b.dataset.suppr);
+    if (error) { toast('Suppression impossible'); return; }
+    state.taches = state.taches.filter(t => t.id !== b.dataset.suppr); vueTaches();
+  }));
+  $('#t-ajout').addEventListener('click', () => modal(`<h3>Nouvelle tâche</h3>
+    <label class="champ"><span>Tâche</span><input id="t-titre" placeholder="Ex. Demander le certificat de non-litige"></label>
+    <label class="champ"><span>Projet</span><select id="t-projet">${optionsProjets(state.filtreProjet === 'tous' ? 'kaporo1' : state.filtreProjet)}</select></label>
+    <label class="champ"><span>Responsable</span><select id="t-qui"><option value="">Non attribuée</option>${state.membres.map(m => `<option value="${m.user_id}">${esc(m.name)}</option>`).join('')}</select></label>
+    <label class="champ"><span>Échéance</span><input id="t-date" type="date"></label>
+    <div class="actions"><button class="btn prim" id="t-ok">Créer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
+    $('#t-ok', mo).addEventListener('click', async () => {
+      const title = $('#t-titre').value.trim(); if (!title) return;
+      const { data, error } = await state.client.from('kp_tasks').insert({ title, project_id: $('#t-projet').value || null, assignee: $('#t-qui').value || null, due_on: $('#t-date').value || null, created_by: state.moi.user_id }).select().single();
+      if (error) { toast('Création impossible'); return; }
+      if (!state.taches.find(t => t.id === data.id)) state.taches.push(data); fermerModal(); vueTaches(); toast('Tâche créée');
+    });
+  }));
+}
+
+/* ---- Équipe ---- */
+async function vueEquipe() {
+  const main = $('#main'); main.className = '';
+  let invites = [];
+  if (state.moi.is_admin) { const { data } = await state.client.from('kp_allowed').select('*').order('created_at'); invites = data || []; }
+  const enAttente = invites.filter(i => !state.membres.find(m => m.email === i.email.toLowerCase()));
+  main.innerHTML = `<div class="vue"><h1>Équipe</h1><p class="sous">Les membres de l’espace. Seules les adresses invitées peuvent se connecter.</p>
+    <div class="g g2">
+      <div class="carte"><h3>Membres <small>${state.membres.length}</small></h3>
+        ${state.membres.map(m => `<div class="ligne"><div style="display:flex;gap:.7em;align-items:center"><span class="avatar" style="background:${m.color}">${initiales(m.name)}</span><div><b>${esc(m.name)}</b>${m.is_admin ? ' <span class="etat bleu">admin</span>' : ''}<small>${esc(m.role)} · ${esc(m.email)}</small></div></div></div>`).join('')}
+        ${enAttente.length ? `<p class="sm muted" style="margin:1em 0 .3em">Invités, pas encore connectés</p>${enAttente.map(i => `<div class="ligne"><div><b>${esc(i.name)}</b><small>${esc(i.role)} · ${esc(i.email)}</small></div><button class="btn sm" data-retirer="${esc(i.email)}">✕</button></div>`).join('')}` : ''}
+        ${state.moi.is_admin ? `<h3 style="margin-top:1.2em">Inviter une personne</h3>
+          <label class="champ"><span>Nom</span><input id="i-nom" placeholder="Prénom Nom"></label>
+          <label class="champ"><span>E-mail</span><input id="i-email" type="email" placeholder="prenom@exemple.com"></label>
+          <label class="champ"><span>Rôle</span><select id="i-role"><option value="promoteur">Promoteur</option><option value="architecte">Architecte</option><option value="pilotage">Pilotage de programme</option><option value="relations institutionnelles">Relations institutionnelles</option><option value="bureau d'études">Bureau d’études</option><option value="banque">Banque (lecture)</option><option value="admin">Administrateur</option></select></label>
+          <button class="btn prim" id="i-ok">Inviter</button>
+          <p class="sm muted" style="margin-top:.6em">La personne reçoit ensuite son lien de connexion en saisissant son adresse sur l’écran d’accueil. Transmettez-lui l’adresse de l’application.</p>` : ''}
+      </div>
+      <div class="carte"><h3>Mon compte</h3>
+        <p class="sm">Connecté en tant que <b>${esc(state.moi.name)}</b> (${esc(state.moi.email)}).</p>
+        <label class="champ" style="margin-top:.8em"><span>Mon nom affiché</span><input id="c-nom" value="${esc(state.moi.name)}"></label>
+        <button class="btn sm" id="c-nom-ok">Enregistrer le nom</button>
+        <h3 style="margin-top:1.2em">Mot de passe <small>facultatif</small></h3>
+        <p class="sm muted" style="margin-bottom:.6em">Définissez un mot de passe pour vous connecter sans attendre l’e-mail, utile quand le réseau est faible.</p>
+        <label class="champ"><span>Nouveau mot de passe (8 caractères min.)</span><input id="c-pw" type="password" autocomplete="new-password"></label>
+        <button class="btn sm" id="c-pw-ok">Définir le mot de passe</button>
+        <h3 style="margin-top:1.2em">Notifications</h3>
+        <p class="sm muted" style="margin-bottom:.6em">Sur ordinateur, recevez une alerte quand un message arrive pendant que l’onglet est en arrière-plan. Sur téléphone, ajoutez Kaporo à l’écran d’accueil pour l’ouvrir comme une application.</p>
+        <button class="btn sm" id="c-notif">Activer les notifications</button>
+        <div style="margin-top:1.5em"><button class="btn rouge" id="c-out">Se déconnecter</button></div>
+      </div></div></div>`;
+  $('#c-nom-ok').addEventListener('click', async () => {
+    const name = $('#c-nom').value.trim(); if (!name) return;
+    const { error } = await state.client.from('kp_members').update({ name }).eq('user_id', state.moi.user_id);
+    if (error) { toast('Modification impossible'); return; } state.moi.name = name; toast('Nom enregistré'); renderNav();
+  });
+  $('#c-pw-ok').addEventListener('click', async () => {
+    const pw = $('#c-pw').value; if (pw.length < 8) { toast('8 caractères minimum'); return; }
+    try { await definirMotDePasse(pw); $('#c-pw').value = ''; toast('<b>Mot de passe défini.</b> Vous pouvez l’utiliser dès la prochaine connexion.'); } catch (e) { toast('Impossible : ' + esc(e.message)); }
+  });
+  $('#c-notif').addEventListener('click', async () => {
+    if (!('Notification' in window)) { toast('Non pris en charge sur cet appareil'); return; }
+    const p = await Notification.requestPermission(); toast(p === 'granted' ? 'Notifications activées' : 'Notifications refusées');
+  });
+  $('#c-out').addEventListener('click', deconnecter);
+  $('#i-ok')?.addEventListener('click', async () => {
+    const email = $('#i-email').value.trim().toLowerCase(); const name = $('#i-nom').value.trim();
+    if (!email || !name) { toast('Nom et e-mail requis'); return; }
+    const { error } = await state.client.from('kp_allowed').insert({ email, name, role: $('#i-role').value, invited_by: state.moi.user_id });
+    if (error) { toast(/duplicate/i.test(error.message) ? 'Cette adresse est déjà invitée' : 'Invitation impossible'); return; }
+    toast(`<b>${esc(name)} invité(e).</b> Transmettez-lui l’adresse de l’application.`); vueEquipe();
+  });
+  $$('[data-retirer]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Retirer cette invitation ?')) return;
+    await state.client.from('kp_allowed').delete().eq('email', b.dataset.retirer); vueEquipe();
+  }));
+}
+
+/* ============================================================
+   Navigation, chargement des données, temps réel, démarrage
+   ============================================================ */
+const VUES = [
+  ['discussions', '💬', 'Discussions', vueDiscussions], ['projets', '🏗️', 'Projets', vueProjets], ['documents', '📁', 'Documents', vueDocuments],
+  ['decisions', '✅', 'Décisions', vueDecisions], ['taches', '☑️', 'Tâches', vueTaches], ['equipe', '👥', 'Équipe', vueEquipe],
+];
+function renderNav() {
+  const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
+  const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
+  const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
+  const btn = k => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${k[2]}</span>${badge(k[0])}</button>`;
+  $('#nav').innerHTML = `<div class="grp">Espace de travail</div>${VUES.map(btn).join('')}`;
+  $('#tabs').innerHTML = VUES.map(btn).join('');
+  $$('#nav button,#tabs button').forEach(b => b.addEventListener('click', () => go(b.dataset.v)));
+  const a = $('#moi-avatar'); if (state.moi) { a.textContent = initiales(state.moi.name); a.style.background = state.moi.color; a.title = state.moi.name; }
+  document.title = (nl ? `(${nl}) ` : '') + 'Kaporo';
+}
+function go(v) {
+  state.vue = v; localStorage.setItem('kp.vue', v); fermerModal();
+  const def = VUES.find(x => x[0] === v) || VUES[0];
+  renderNav(); def[3]();
+}
+function setConn(ok, lib) { const c = $('#conn'); c.className = 'pill ' + (ok ? 'on' : 'off'); c.innerHTML = '<i></i><span>' + (lib || (ok ? 'En direct' : 'Hors ligne')) + '</span>'; }
+
+async function chargerTout() {
+  const c = state.client;
+  const [me, mb, pr, ch, ms, rd, dc, de, ph, ta] = await Promise.all([
+    c.from('kp_members').select('*').eq('user_id', state.session.user.id).maybeSingle(),
+    c.from('kp_members').select('*').order('created_at'),
+    c.from('kp_projects').select('*').order('sort'),
+    c.from('kp_channels').select('*').order('sort'),
+    c.from('kp_messages').select('*').order('created_at', { ascending: true }).limit(2000),
+    c.from('kp_reads').select('*').eq('user_id', state.session.user.id),
+    c.from('kp_documents').select('*').order('created_at', { ascending: false }),
+    c.from('kp_decisions').select('*').order('decided_on', { ascending: false }),
+    c.from('kp_phases').select('*').order('num'),
+    c.from('kp_tasks').select('*').order('created_at'),
+  ]);
+  const err = [me, mb, pr, ch, ms, rd, dc, de, ph, ta].find(r => r.error); if (err) throw err.error;
+  if (!me.data) throw new Error('PROFIL_ABSENT');
+  state.moi = me.data; state.membres = mb.data; state.projets = pr.data; state.canaux = ch.data; state.messages = ms.data;
+  state.lectures = Object.fromEntries((rd.data || []).map(r => [r.channel_id, r.last_read]));
+  state.documents = dc.data; state.decisions = de.data; state.phases = ph.data; state.taches = ta.data;
+}
+function brancherTempsReel() {
+  const c = state.client;
+  const maj = (table, cle, tri) => async payload => {
+    const row = payload.new?.id ? payload.new : null;
+    if (payload.eventType === 'DELETE') { state[cle] = state[cle].filter(x => x.id !== payload.old.id); }
+    else if (row) { const i = state[cle].findIndex(x => x.id === row.id); if (i >= 0) state[cle][i] = row; else state[cle].push(row); if (tri) state[cle].sort(tri); }
+    if (!document.activeElement?.matches('input,select,textarea') && state.vue !== 'discussions') go(state.vue); else renderNav();
+  };
+  c.channel('kaporo-live')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_messages' }, p => { if (p.new?.id) messageRecu(p.new); })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_tasks' }, maj('kp_tasks', 'taches'))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_decisions' }, maj('kp_decisions', 'decisions', (a, b) => b.decided_on.localeCompare(a.decided_on)))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_documents' }, maj('kp_documents', 'documents', (a, b) => b.created_at.localeCompare(a.created_at)))
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'kp_phases' }, maj('kp_phases', 'phases', (a, b) => a.num - b.num))
+    .subscribe(st => { setConn(st === 'SUBSCRIBED', st === 'SUBSCRIBED' ? 'En direct' : st === 'CHANNEL_ERROR' ? 'Reconnexion…' : 'Connexion…'); });
+  // Nouveaux membres : rafraîchir la liste (pas de temps réel sur la table, on recharge à la demande)
+  c.from('kp_members').select('*').order('created_at').then(r => { if (r.data) state.membres = r.data; });
+}
+
+async function demarrerSession(session) {
+  state.session = session;
+  try {
+    await chargerTout();
+  } catch (e) {
+    console.error(e);
+    if (String(e.message).includes('PROFIL_ABSENT')) { msgLogin('err', 'Votre compte existe mais n’est pas (ou plus) membre de cet espace. Contactez Paul.'); await state.client.auth.signOut(); return; }
+    msgLogin('err', 'Chargement impossible : ' + esc(e.message)); return;
+  }
+  $('#login').hidden = true; $('#app').hidden = false;
+  go(VUES.find(v => v[0] === state.vue) ? state.vue : 'discussions');
+  brancherTempsReel();
+  if (state.vue === 'discussions' && window.matchMedia('(max-width:820px)').matches && totalNonLus() === 0 && state.canal) { /* on reste sur la liste des canaux */ }
+}
+(function boot() {
+  state.client = supabase.createClient(SUPA.url, SUPA.key, { auth: { flowType: 'implicit', persistSession: true, detectSessionInUrl: true }, realtime: { params: { eventsPerSecond: 10 } } });
+  initLogin();
+  let demarre = false;
+  state.client.auth.onAuthStateChange((evt, session) => {
+    if (session && !demarre) { demarre = true; demarrerSession(session); }
+    if (evt === 'SIGNED_OUT') { demarre = false; $('#app').hidden = true; $('#login').hidden = false; }
+  });
+  state.client.auth.getSession().then(({ data }) => { if (data.session && !demarre) { demarre = true; demarrerSession(data.session); } else if (!data.session) { $('#l-email').focus(); } });
+  if (location.hash.includes('error=')) { const p = new URLSearchParams(location.hash.slice(1)); msgLogin('err', 'Lien invalide ou expiré : ' + esc(p.get('error_description') || p.get('error'))); history.replaceState(null, '', location.pathname); }
+  window.addEventListener('offline', () => setConn(false, 'Hors ligne'));
+  window.addEventListener('online', () => setConn(true, 'En direct'));
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && state.vue === 'discussions' && state.canal && state.moi) { renderFil(true); marquerLu(state.canal); } });
+})();

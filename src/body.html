@@ -1,0 +1,29 @@
+<div id="login">
+  <div class="boite">
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 64 64"><path d="M16 48V16h8v14l14-14h10L32 32l17 16H38L24 34v14z" fill="#C8992A"/></svg></div>
+    <h1>Kaporo</h1>
+    <p class="sous">Espace de travail sécurisé — programmes Kaporo 1 et Kaporo 2, Conakry.</p>
+    <form id="f-login" autocomplete="on">
+      <label class="champ"><span>Votre adresse e-mail</span><input id="l-email" type="email" inputmode="email" autocomplete="email" placeholder="prenom@exemple.com" required></label>
+      <label class="champ" id="l-pass-wrap" hidden><span>Mot de passe</span><input id="l-pass" type="password" autocomplete="current-password"></label>
+      <div id="l-msg"></div>
+      <button class="btn prim bloc" id="l-btn" type="submit">Recevoir mon lien de connexion</button>
+      <button class="lien" type="button" id="l-toggle">J'ai déjà un mot de passe</button>
+    </form>
+    <p class="muted sm" style="margin-top:1em">Accès réservé aux membres invités. Le lien de connexion arrive par e-mail et reste valable une heure.</p>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <header class="top">
+    <div class="brand"><div class="logo">K</div><div><b>Kaporo</b><small>Kaporo 1 · Kaporo 2 — Conakry</small></div></div>
+    <div class="spacer"></div>
+    <span class="pill off" id="conn"><i></i><span>Connexion…</span></span>
+    <div class="avatar" id="moi-avatar" title="">·</div>
+  </header>
+  <nav class="side" id="nav"></nav>
+  <main id="main"></main>
+  <nav class="tabs" id="tabs"></nav>
+</div>
+<div class="toast" id="toast"></div>
+<div id="overlay"></div>
