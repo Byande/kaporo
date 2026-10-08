@@ -181,7 +181,7 @@ async function vueEquipe() {
   }));
 }
 
-/* ---- Développement (administrateur) : demandes transmises à l'agent Claude ---- */
+/* ---- Développement (administrateur) : demandes transmises à l'agent de développement ---- */
 const STATUTS_DEV = { 'envoyée': ['bleu', 'Transmise'], 'en cours': ['ambre', 'En cours'], 'question': ['ambre', 'Question'], 'livrée': ['', 'Livrée'], 'abandonnée': ['gris', 'Abandonnée'], 'erreur': ['rouge', 'Erreur'] };
 async function chargerDev() {
   const { data, error } = await state.client.from('kp_dev_requests').select('*').order('created_at', { ascending: false });
@@ -193,13 +193,13 @@ async function vueDev() {
   if (!state.dev) await chargerDev();
   const ouvertes = state.dev.filter(d => !['livrée', 'abandonnée'].includes(d.status));
   const closes = state.dev.filter(d => ['livrée', 'abandonnée'].includes(d.status));
-  main.innerHTML = `<div class="vue"><h1>Développement</h1><p class="sous">Décrivez une modification ou un ajustement de l’application. La demande part automatiquement vers l’agent Claude, qui la réalise, publie la nouvelle version et vous répond ici. Comptez quelques minutes.</p>
+  main.innerHTML = `<div class="vue"><h1>Développement</h1><p class="sous">Décrivez une modification ou un ajustement de l’application. La demande est transmise à l’agent de développement, qui la réalise, publie la nouvelle version et vous répond ici. Comptez quelques minutes.</p>
     <div class="g g2">
       <div class="carte accent"><h3>Nouvelle demande</h3>
         <label class="champ"><span>En une ligne</span><input id="dv-titre" placeholder="Ex. Ajouter un filtre par membre dans Tâches"></label>
         <label class="champ"><span>Détail (ce que vous voulez voir, où, pourquoi)</span><textarea id="dv-detail" rows="5" placeholder="Plus c’est précis, plus le résultat sera juste du premier coup."></textarea></label>
         <label class="champ"><span>Capture d’écran (facultatif)</span><input type="file" id="dv-file" accept="image/*"></label>
-        <button class="btn prim" id="dv-ok">Envoyer à Claude</button>
+        <button class="btn prim" id="dv-ok">Envoyer la demande</button>
         <p class="sm muted" style="margin-top:.8em">Après « Livrée », rechargez l’application pour voir le résultat (sur téléphone : fermer et rouvrir).</p></div>
       <div class="carte"><h3>En cours <small>${ouvertes.length}</small></h3>${ouvertes.length ? ouvertes.map(carteDev).join('') : '<div class="vide">Aucune demande en cours.</div>'}</div>
     </div>
@@ -216,7 +216,7 @@ async function vueDev() {
 }
 function carteDev(d) {
   const [cls, lib] = STATUTS_DEV[d.status] || ['gris', d.status];
-  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr;gap:.7em"><span class="s" style="min-width:3.2em">${t.who === 'claude' ? 'Claude' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
+  const fil = (d.thread || []).map(t => `<div class="evt ${t.who === 'claude' ? 'bleu' : ''}" style="grid-template-columns:auto 1fr;gap:.7em"><span class="s" style="min-width:3.2em">${t.who === 'claude' ? 'Agent' : 'Vous'}</span><span style="white-space:pre-wrap">${esc(t.text)}<small class="d">${dateFr(t.at)} ${hhmm(new Date(t.at))}</small></span></div>`).join('');
   return `<div class="ligne" style="display:block"><div style="display:flex;justify-content:space-between;gap:.8em;align-items:center"><b>${esc(d.title)}</b><span class="etat ${cls}">${lib}</span></div>
     <small>${dateFr(d.created_at)} ${hhmm(new Date(d.created_at))}${d.commit_sha ? ' · version ' + esc(d.commit_sha.slice(0, 7)) : ''}</small>
     ${d.detail ? `<p class="sm" style="white-space:pre-wrap;margin:.4em 0">${esc(d.detail)}</p>` : ''}
@@ -236,12 +236,12 @@ async function envoyerDev() {
     if (f) { toast('Envoi de la capture…', 8000); attachment = await televerser(f, 'dev'); }
     const { error } = await state.client.from('kp_dev_requests').insert({ title, detail: detail || null, attachment, thread: [], created_by: state.moi.user_id });
     if (error) throw error;
-    await chargerDev(); vueDev(); toast('<b>Demande transmise à Claude.</b> Vous serez prévenu ici.');
+    await chargerDev(); vueDev(); toast('<b>Demande transmise.</b> Vous serez prévenu ici.');
   } catch (e) { console.error(e); toast('Envoi impossible : ' + esc(e.message || '')); btn.disabled = false; }
 }
 function repondreDev(id) {
   const d = state.dev.find(x => x.id === id); if (!d) return;
-  modal(`<h3>${d.status === 'question' ? 'Répondre à Claude' : 'Demander un ajustement'}</h3>
+  modal(`<h3>${d.status === 'question' ? 'Répondre à l’agent' : 'Demander un ajustement'}</h3>
     <p class="sm muted" style="margin-bottom:.6em">${esc(d.title)}</p>
     <label class="champ"><span>Votre message</span><textarea id="dv-msg" rows="5"></textarea></label>
     <div class="actions"><button class="btn prim" id="dv-msg-ok">Envoyer</button><button class="btn" onclick="fermerModal()">Annuler</button></div>`, mo => {
@@ -250,7 +250,7 @@ function repondreDev(id) {
       const thread = (d.thread || []).concat([{ who: 'paul', text, at: new Date().toISOString() }]);
       const { error } = await state.client.from('kp_dev_requests').update({ thread, status: 'envoyée' }).eq('id', id);
       if (error) { toast('Envoi impossible'); return; }
-      fermerModal(); await chargerDev(); vueDev(); toast('Message transmis à Claude');
+      fermerModal(); await chargerDev(); vueDev(); toast('Message transmis');
     });
   });
 }
@@ -262,9 +262,9 @@ async function carteReglagesDev() {
   try { const { data } = await state.client.rpc('kp_dev_dispatch_log'); journal = data || []; } catch (e) { }
   const ok = k => etat[k] ? '<span class="etat">renseigné</span>' : '<span class="etat rouge">manquant</span>';
   const j = journal.length ? `<p class="sm muted" style="margin-top:.8em">Derniers signaux envoyés à GitHub : ${journal.map(x => `<span class="etat ${x.status >= 200 && x.status < 300 ? '' : 'rouge'}">${x.status || 'erreur'}</span>`).join(' ')}</p>` : '';
-  return `<div class="carte" style="margin-top:1em"><h3>Liaison avec l’agent Claude</h3>
-    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine Claude sur claude.ai. Elles sont stockées côté serveur, jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
-    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, la même que KP_DEV_SECRET sur claude.ai"></label>
+  return `<div class="carte" style="margin-top:1em"><h3>Liaison avec l’agent de développement</h3>
+    <p class="sm muted" style="margin-bottom:.8em">Deux valeurs relient ce module à la routine de développement. Elles sont stockées côté serveur, jamais réaffichées. Laissez un champ vide pour ne pas le modifier.</p>
+    <label class="champ"><span>Secret partagé ${ok('dev_secret')}</span><input id="dvs-secret" type="password" autocomplete="off" placeholder="Phrase longue, la même que KP_DEV_SECRET côté routine"></label>
     <label class="champ"><span>Jeton GitHub ${ok('github_token')}</span><input id="dvs-token" type="password" autocomplete="off" placeholder="Jeton à granularité fine, dépôt Byande/kaporo, Contents : lecture et écriture"></label>
     <button class="btn sm" id="dvs-ok">Enregistrer</button>${j}</div>`;
 }
