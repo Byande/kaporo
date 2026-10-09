@@ -11,7 +11,8 @@ const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
   const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
-  const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
+  const enCours = (state.reunions || []).filter(m => m.status === 'en cours').length;
+  const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : k === 'reunions' && enCours ? `<span class="bd" title="Réunion en cours">▶</span>` : '';
   const devOuv = (state.dev || []).filter(d => ['question', 'livrée'].includes(d.status) && !d.vu).length;
   const btn = (k, court) => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${court && k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
   const vs = vuesVisibles();

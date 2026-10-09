@@ -1804,7 +1804,7 @@ function formReunion(id) {
         agenda: $('#mr-odj').value.split('\n').map(x => x.replace(/^\s*\d+[.)]\s*/, '').trim()).filter(Boolean).map(text => ({ text, done: !!anciens.find(a => a.text === text && a.done) })),
         participants: $$('[data-part]:checked', mo).map(c => c.dataset.part), externals: $('#mr-ext').value.trim() || null };
       if (m) { const { error } = await state.client.from('kp_meetings').update(row).eq('id', m.id); if (error) { toast('Enregistrement impossible : ' + esc(error.message)); return; } Object.assign(m, row); fermerModal(); toast('Réunion mise à jour'); if (state.reunion.ouverte === m.id) rendreReunion(); else vueReunions(); }
-      else { const { data, error } = await state.client.from('kp_meetings').insert({ ...row, created_by: state.moi.user_id }).select().single(); if (error) { toast('Création impossible : ' + esc(error.message)); return; } if (!reunionDe(data.id)) state.reunions.push(data); fermerModal(); toast('Réunion planifiée'); ouvrirReunion(data.id); }
+      else { const { data, error } = await state.client.from('kp_meetings').insert({ ...row, created_by: state.moi.user_id }).select().single(); if (error) { toast('Création impossible : ' + esc(error.message)); return; } if (!reunionDe(data.id)) state.reunions.push(data); fermerModal(); toast('Réunion planifiée'); await annoncerReunion(data, 'planifiée'); ouvrirReunion(data.id); }
     });
     $('#mr-annuler', mo)?.addEventListener('click', async () => { if (!confirm('Annuler cette réunion ?')) return; await majReunion(m, { status: 'annulée' }); fermerModal(); state.reunion.ouverte === m.id ? rendreReunion() : vueReunions(); });
   });
@@ -1849,6 +1849,7 @@ function rendreReunion() {
         <h1 style="font-size:1.5em">${esc(m.title)}</h1><p class="sous" style="margin-bottom:.3em">📅 ${dateHeureFr(m.starts_at)} · ${m.duration_min} min · ${ic} ${kl} · ${esc(nomProjet(m.project_id))}${m.location ? ' · 📍 ' + esc(m.location) : ''}</p></div>
       <div class="actions">${m.link && m.status !== 'terminée' && m.status !== 'annulée' ? `<a class="btn or" href="${esc(m.link)}" target="_blank" rel="noopener">💻 Rejoindre la visio</a>` : ''}
         ${m.status === 'planifiée' ? '<button class="btn prim" id="m-demarrer">▶ Démarrer la réunion</button>' : ''}
+        ${m.status === 'planifiée' || m.status === 'en cours' ? '<button class="btn" id="m-ics" title="Fichier calendrier (Google Agenda, Outlook, iPhone)">📅 Agenda</button><button class="btn" id="m-inviter" title="Ouvre votre messagerie avec les participants et les détails">✉️ Inviter</button>' : ''}
         ${m.status === 'en cours' ? '<button class="btn prim" id="m-cloturer">■ Clôturer et rédiger le compte rendu</button>' : ''}
         ${m.status === 'terminée' ? '<button class="btn" id="m-rouvrir" title="Reprendre la séance">↺ Rouvrir</button>' : ''}
         <button class="btn" id="m-modifier">✎ Modifier</button>${peutEditer ? '<button class="btn" id="m-suppr" title="Supprimer">✕</button>' : ''}</div></div>
@@ -1878,7 +1879,9 @@ function rendreReunion() {
   $('#m-retour').addEventListener('click', () => go('reunions'));
   $('#m-modifier').addEventListener('click', () => formReunion(m.id));
   $('#m-suppr')?.addEventListener('click', async () => { if (!confirm('Supprimer cette réunion, son fil et son compte rendu ?')) return; const { error } = await state.client.from('kp_meetings').delete().eq('id', m.id); if (error) { toast('Suppression impossible'); return; } state.reunions = state.reunions.filter(x => x.id !== m.id); go('reunions'); });
-  $('#m-demarrer')?.addEventListener('click', async () => { if (await majReunion(m, { status: 'en cours', started_at: new Date().toISOString() })) { toast('Réunion démarrée'); rendreReunion(); } });
+  $('#m-demarrer')?.addEventListener('click', async () => { if (await majReunion(m, { status: 'en cours', started_at: new Date().toISOString() })) { toast('Réunion démarrée'); renderNav(); rendreReunion(); annoncerReunion(m, 'démarrée'); } });
+  $('#m-ics')?.addEventListener('click', () => telechargerICS(m));
+  $('#m-inviter')?.addEventListener('click', () => inviterParEmail(m));
   $('#m-rouvrir')?.addEventListener('click', async () => { if (await majReunion(m, { status: 'en cours', ended_at: null })) rendreReunion(); });
   $('#m-cloturer')?.addEventListener('click', () => cloturerReunion(m));
   $('#m-regen')?.addEventListener('click', async () => { if (m.minutes_html && !confirm('Régénérer le compte rendu à partir du fil ? La version actuelle est conservée dans l’historique du document.')) return; await enregistrerCR(m, genererCR(m, r.notes), false); rendreReunion(); });
@@ -1943,7 +1946,36 @@ async function cloturerReunion(m) {
       toast('Tâches et décisions créées');
     }
   }
-  rendreReunion(); toast('<b>Réunion clôturée.</b> Le compte rendu est prêt à être envoyé.', 5000);
+  renderNav(); rendreReunion(); toast('<b>Réunion clôturée.</b> Le compte rendu est prêt à être envoyé.', 5000);
+  annoncerReunion(m, 'clôturée');
+}
+
+/* ---- Annonces dans Discussions, agenda, invitations ---- */
+const canalReunion = m => state.canaux.find(c => c.project_id === m.project_id && c.kind !== 'prive') || state.canaux.find(c => c.kind === 'general');
+const urlApp = () => location.origin + location.pathname;
+async function annoncerReunion(m, evt) {
+  const canal = canalReunion(m); if (!canal) return;
+  const [ic, kl] = KINDS_R[m.kind] || KINDS_R['présentiel'];
+  const ou = [m.location ? '📍 ' + m.location : null, m.link ? '💻 ' + m.link : null].filter(Boolean).join(' · ');
+  const body = evt === 'planifiée' ? `📅 @tous Réunion planifiée : « ${m.title} »\n${dateHeureFr(m.starts_at)} · ${m.duration_min} min · ${ic} ${kl}${ou ? '\n' + ou : ''}${(m.agenda || []).length ? '\nOrdre du jour : ' + m.agenda.map(a => a.text).join(' · ') : ''}\nOnglet Réunions → ouvrez-la pour y participer et noter en direct.`
+    : evt === 'démarrée' ? `▶ @tous La réunion « ${m.title} » commence maintenant.${m.link ? '\n💻 ' + m.link : ''}\nOnglet Réunions → ouvrez-la pour suivre et écrire dans le fil.`
+    : `■ @tous La réunion « ${m.title} » est terminée. Le compte rendu est disponible dans l’onglet Réunions.`;
+  const { data, error } = await state.client.from('kp_messages').insert({ channel_id: canal.id, author: state.moi.user_id, body, mentions: extraireMentions(body) }).select().single();
+  if (!error && data && !state.messages.find(x => x.id === data.id)) state.messages.push(data);
+}
+const icsDate = d => new Date(d).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const icsTexte = t => String(t || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+function telechargerICS(m) {
+  const fin = finPrevue(m); const desc = [m.objectives, (m.agenda || []).length ? 'Ordre du jour : ' + m.agenda.map((a, i) => (i + 1) + '. ' + a.text).join(' ') : null, m.link ? 'Visio : ' + m.link : null, 'Kaporo : ' + urlApp()].filter(Boolean).join('\n');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kaporo//Reunions//FR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT', `UID:kaporo-${m.id}@kaporo`, `DTSTAMP:${icsDate(new Date())}`, `DTSTART:${icsDate(m.starts_at)}`, `DTEND:${icsDate(fin)}`, `SUMMARY:${icsTexte(m.title)}`, `DESCRIPTION:${icsTexte(desc)}`, m.location || m.link ? `LOCATION:${icsTexte(m.location || m.link)}` : null, m.link ? `URL:${m.link}` : null, 'BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', `DESCRIPTION:${icsTexte(m.title)}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = m.title.replace(/[\\/:*?"<>|]+/g, '-') + '.ics'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  toast('Fichier calendrier téléchargé : ouvrez-le pour l’ajouter à votre agenda.');
+}
+function inviterParEmail(m) {
+  const emails = (m.participants || []).filter(id => id !== state.moi.user_id).map(id => membre(id).email).filter(Boolean);
+  const [ic, kl] = KINDS_R[m.kind] || KINDS_R['présentiel'];
+  const corps = `Bonjour,\n\nVous êtes invité·e à la réunion « ${m.title} » (${nomProjet(m.project_id)}).\n\nQuand : ${dateHeureFr(m.starts_at)} (${m.duration_min} min)\nFormat : ${kl}${m.location ? '\nLieu : ' + m.location : ''}${m.link ? '\nVisio : ' + m.link : ''}${m.objectives ? '\n\nObjectifs : ' + m.objectives : ''}${(m.agenda || []).length ? '\n\nOrdre du jour :\n' + m.agenda.map((a, i) => (i + 1) + '. ' + a.text).join('\n') : ''}\n\nPendant la réunion, ouvrez Kaporo (onglet Réunions) pour suivre et noter en direct : ${urlApp()}\n\n${state.moi.name}`;
+  window.location.href = `mailto:${emails.join(',')}?subject=${encodeURIComponent('Réunion : ' + m.title + ' — ' + dateFr(m.starts_at))}&body=${encodeURIComponent(corps)}`;
 }
 function genererCR(m, notes) {
   const p = id => esc(nomM(id)); const par = k => notes.filter(x => x.kind === k).sort((a, b) => a.created_at.localeCompare(b.created_at));
@@ -2041,7 +2073,8 @@ const vuesVisibles = () => VUES.filter(v => !v[4] || (state.moi && state.moi.is_
 function renderNav() {
   const nl = totalNonLus(); const auj = new Date().toISOString().slice(0, 10);
   const retard = state.taches.filter(t => t.status !== 'fait' && t.due_on && t.due_on < auj).length;
-  const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : '';
+  const enCours = (state.reunions || []).filter(m => m.status === 'en cours').length;
+  const badge = k => k === 'discussions' && nl ? `<span class="bd">${nl}</span>` : k === 'taches' && retard ? `<span class="bd">${retard}</span>` : k === 'reunions' && enCours ? `<span class="bd" title="Réunion en cours">▶</span>` : '';
   const devOuv = (state.dev || []).filter(d => ['question', 'livrée'].includes(d.status) && !d.vu).length;
   const btn = (k, court) => `<button class="${state.vue === k[0] ? 'on' : ''}" data-v="${k[0]}"><span class="ic">${k[1]}</span><span>${court && k[2] === 'Développement' ? 'Dév.' : k[2]}</span>${badge(k[0])}</button>`;
   const vs = vuesVisibles();
