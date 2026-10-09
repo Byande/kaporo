@@ -1,5 +1,5 @@
 // Kaporo — rédaction du compte rendu de réunion par Claude.
-// Secret à définir côté Supabase (Edge Functions → Secrets) : ANTHROPIC_API_KEY.
+// Secrets côté Supabase (Edge Functions → Secrets) : ANTHROPIC_API_KEY (clé rattachée à un espace de travail de préférence) ; sinon ajouter ANTHROPIC_WORKSPACE_ID.
 // Déploiement : via Claude Code (MCP Supabase) ou `supabase functions deploy kp-compte-rendu`.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -45,7 +45,9 @@ Deno.serve(async (req: Request) => {
       contributions: (notes || []).map((n: Record<string, unknown>) => ({ type: n.kind, auteur: nom(n.author as string), texte: n.text, responsable: n.assignee ? nom(n.assignee as string) : null, echeance: n.due_on, heure: n.created_at })),
       redige_par: nom(me.user.id),
     };
-    const client = new Anthropic({ apiKey: key });
+    // Clé d'organisation (non rattachée à un espace de travail) : l'en-tête anthropic-workspace-id est alors obligatoire (secret ANTHROPIC_WORKSPACE_ID).
+    const wid = Deno.env.get("ANTHROPIC_WORKSPACE_ID");
+    const client = new Anthropic({ apiKey: key, defaultHeaders: wid ? { "anthropic-workspace-id": wid } : undefined });
     const resp = await client.beta.messages.create({
       model: "claude-opus-5-5", max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
